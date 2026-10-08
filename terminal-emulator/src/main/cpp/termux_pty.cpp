@@ -1,5 +1,6 @@
 #include <jni.h>
 #include <string>
+#include <vector>
 #include <cstdlib>
 #include <cstring>
 #include <unistd.h>
@@ -11,6 +12,7 @@
 
 #define LOG_TAG "TermuxPTY"
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
+#define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 // Helper function to open PTY
@@ -225,6 +227,79 @@ Java_com_termux_terminal_JNI_waitFor(
     }
 
     return 0;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_termux_terminal_JNI_readFromPty(
+    JNIEnv* /* env */,
+    jclass /* clazz */,
+    jint fd,
+    jbyteArray buffer,
+    jint maxLength)
+{
+    if (fd < 0) {
+        LOGE("readFromPty: invalid fd %d", fd);
+        return -1;
+    }
+
+    // Read directly into a stack buffer to avoid pinning array issues across threads.
+    jsize length = maxLength > 0 ? maxLength : 4096;
+    if (length > 65536) length = 65536;
+
+    std::vector<jbyte> stackBuffer(length);
+    ssize_t bytesRead = read(fd, stackBuffer.data(), length);
+
+    if (bytesRead < 0) {
+        LOGE("readFromPty: read failed on fd %d", fd);
+        return -1;
+    }
+
+    if (bytesRead == 0) {
+        return 0;  // EOF
+    }
+
+    // Copy read bytes into the caller-provided buffer.
+    if (buffer != nullptr) {
+        jsize bufLen = env->GetArrayLength(buffer);
+        if (bufLen < bytesRead) {
+            LOGE("readFromPty: buffer too small (have %d, need %d)", bufLen, (int)bytesRead);
+            return -1;
+        }
+        env->SetByteArrayRegion(buffer, 0, bytesRead, stackBuffer.data());
+    }
+
+    return static_cast<jint>(bytesRead);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_termux_terminal_JNI_writeToPty(
+    JNIEnv* /* env */,
+    jclass /* clazz */,
+    jint fd,
+    jbyteArray data,
+    jint length)
+{
+    if (fd < 0) {
+        LOGE("writeToPty: invalid fd %d", fd);
+        return;
+    }
+
+    if (data == nullptr || length <= 0) {
+        return;
+    }
+
+    jsize bufLen = env->GetArrayLength(data);
+    if (length > bufLen) length = bufLen;
+
+    std::vector<jbyte> stackBuffer(length);
+    env->GetByteArrayRegion(data, 0, length, stackBuffer.data());
+
+    ssize_t written = write(fd, stackBuffer.data(), length);
+    if (written < 0) {
+        LOGE("writeToPty: write failed on fd %d", fd);
+    } else if (written < length) {
+        LOGW("writeToPty: partial write (%d of %d bytes)", (int)written, length);
+    }
 }
 
 extern "C" JNIEXPORT void JNICALL
