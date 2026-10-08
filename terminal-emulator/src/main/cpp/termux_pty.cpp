@@ -231,7 +231,7 @@ Java_com_termux_terminal_JNI_waitFor(
 
 extern "C" JNIEXPORT jint JNICALL
 Java_com_termux_terminal_JNI_readFromPty(
-    JNIEnv* /* env */,
+    JNIEnv* env,
     jclass /* clazz */,
     jint fd,
     jbyteArray buffer,
@@ -273,7 +273,7 @@ Java_com_termux_terminal_JNI_readFromPty(
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_termux_terminal_JNI_writeToPty(
-    JNIEnv* /* env */,
+    JNIEnv* env,
     jclass /* clazz */,
     jint fd,
     jbyteArray data,
