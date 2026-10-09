@@ -25,19 +25,21 @@ public class PrivacyGuard {
         String filtered = input;
         for (Pattern pattern : SENSITIVE_PATTERNS) {
             Matcher matcher = pattern.matcher(filtered);
-            StringBuffer sb = new StringBuffer();
-            while (matcher.find()) {
-                if (matcher.groupCount() >= 2) {
-                    // Redact only the value part (Group 2)
-                    String keyPart = filtered.substring(matcher.start(), matcher.start(2));
-                    matcher.appendReplacement(sb, Matcher.quoteReplacement(keyPart + "[REDACTED]"));
-                } else {
-                    // Redact the whole match
-                    matcher.appendReplacement(sb, "[REDACTED]");
-                }
+            if (matcher.find()) {
+                StringBuffer sb = new StringBuffer(filtered.length() + 16);
+                do {
+                    if (matcher.groupCount() >= 2) {
+                        // Redact only the value part (Group 2)
+                        String keyPart = filtered.substring(matcher.start(), matcher.start(2));
+                        matcher.appendReplacement(sb, Matcher.quoteReplacement(keyPart + "[REDACTED]"));
+                    } else {
+                        // Redact the whole match
+                        matcher.appendReplacement(sb, "[REDACTED]");
+                    }
+                } while (matcher.find());
+                matcher.appendTail(sb);
+                filtered = sb.toString();
             }
-            matcher.appendTail(sb);
-            filtered = sb.toString();
         }
         return filtered;
     }
