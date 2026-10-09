@@ -43,7 +43,7 @@ public class FilePickerDialog extends DialogFragment {
     private static final String ARG_DIRECTORY_ONLY = "directory_only";
     private static final String ARG_SINGLE_SELECTION = "single_selection";
     private static final String[] HIDDEN_DIRS = {".git", "node_modules", "__pycache__", ".gradle", "build", ".idea"};
-    private static final String[] SOURCE_EXTENSIONS = {".java", ".kt", ".py", ".js", ".ts", ".tsx", ".jsx", ".go", ".rs", ".c", ".cpp", ".h", ".hpp", ".swift", ".rb", ".php", ".html", ".css", ".scss", ".json", ".xml", ".yaml", ".yml", ".md", ".txt", ".sh", ".bash"};
+    private static final Set<String> SOURCE_EXTENSIONS = new HashSet<>(Arrays.asList(".java", ".kt", ".py", ".js", ".ts", ".tsx", ".jsx", ".go", ".rs", ".c", ".cpp", ".h", ".hpp", ".swift", ".rb", ".php", ".html", ".css", ".scss", ".json", ".xml", ".yaml", ".yml", ".md", ".txt", ".sh", ".bash"));
 
     private FilePickerCallback callback;
     private File currentDirectory;
@@ -216,9 +216,10 @@ public class FilePickerDialog extends DialogFragment {
     }
 
     private boolean isSourceFile(String name) {
-        String lowerName = name.toLowerCase();
-        for (String ext : SOURCE_EXTENSIONS) {
-            if (lowerName.endsWith(ext)) return true;
+        int lastDotIndex = name.lastIndexOf('.');
+        if (lastDotIndex != -1) {
+            String ext = name.substring(lastDotIndex).toLowerCase();
+            return SOURCE_EXTENSIONS.contains(ext);
         }
         return false;
     }
