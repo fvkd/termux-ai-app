@@ -4,6 +4,21 @@ This document tracks build failures, lessons learned, and improvements for reduc
 
 ---
 
+## Target Hardware & Device Profile
+- **Device:** Google Pixel 10a
+- **OS:** Android 17 Canary (API 36+)
+- **Root Status:** Rooted (su/magisk/kernelsu environment)
+- **Architecture:** ARM64 only (`arm64-v8a`)
+- **Page Size:** 16 KB page alignment required (`-Wl,-z,max-page-size=16384`)
+- **Key Architectural Considerations:**
+  1. **16 KB Memory Page Size**: Starting in modern Tensor chips on Android 15/16/17, kernels use 16 KB memory pages. ELF shared libraries (`.so`) must have `PT_LOAD` segments aligned to 16384 bytes, or `dlopen()` aborts at launch.
+  2. **Linker Flag Placement**: `-Wl,-z,max-page-size=16384` must be placed in `CMakeLists.txt` via `target_link_options()`, never in `cppFlags`/`cFlags` (which triggers `-Wunused-command-line-argument`).
+  3. **Android Keystore / Tink Previews**: Canary versions of Android frequently alter Keystore provider behavior. `EncryptedSharedPreferences` must have resilient fallback to standard `SharedPreferences`.
+  4. **Non-reflective File Descriptors**: Modern ART hidden API enforcement strictly rejects private field reflection into `FileDescriptor`. Use `ParcelFileDescriptor.adoptFd()` to safely wrap native PTY fds without triggering `System.exit(1)`.
+  5. **Root Environment**: Device is rooted; caution with shell permissions and paths.
+
+---
+
 ## Build #2 - 2026-02-15 - SUCCESS
 
 ### Pre-Build Analysis

@@ -1,6 +1,8 @@
 # Android Studio and IntelliJ
 *.iml
 .idea/
+.vscode/
+*.apk
 .gradle/
 local.properties
 
