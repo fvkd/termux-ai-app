@@ -1,5 +1,6 @@
 package com.termux.terminal;
 
+import android.app.AlertDialog;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
@@ -19,6 +20,7 @@ import android.widget.Toast;
 
 import android.util.Log;
 
+import com.termux.app.CommandGuard;
 import com.termux.plus.api.AIProvider;
 import com.termux.view.TerminalView;
 import com.termux.view.TerminalViewClient;
@@ -30,39 +32,46 @@ import java.util.concurrent.Executors;
 
 /**
  * Enhanced TerminalView for Termux+
- * 
+ *
  * Key enhancements:
  * - AI Provider integration (modular)
  * - Gboard autocomplete support
  * - Visual indicators for AI operations
  * - Enhanced text selection for mobile
  * - Progress tracking and file highlighting
+ * - Dangerous-command guard: intercepts Enter before the command line is
+ *   sent to the shell, and if CommandGuard flags it, requires explicit
+ *   confirmation. This makes the "command filtering" setting real.
  */
 public class EnhancedTerminalView extends TerminalView {
     private static final String TAG = "EnhancedTerminalView";
-    
+
     // AI Integration
     private AIProvider currentAIProvider;
     private boolean isAIActive = false;
     private String currentAIOperation = "";
     private float aiProgress = 0.0f;
     private int tabIndex = -1;
-    
+
     // Gboard integration
     private boolean gboardAutoCompleteEnabled = true;
     private InputMethodManager inputMethodManager;
-    
+
     // Visual enhancements
     private Paint overlayPaint;
     private Paint progressPaint;
     private Paint highlightPaint;
     private List<FileHighlight> fileHighlights;
-    
+
     // Gesture handling
     private GestureDetector gestureDetector;
     private Handler mainHandler;
     private ExecutorService backgroundExecutor;
-    
+
+    // Dangerous-command guard
+    private Boolean commandGuardEnabled; // lazily read from prefs; null = not read yet
+    private boolean enterBlocked = false;
+
     public interface ClaudeCodeListener {
         void onClaudeCodeDetected();
         void onClaudeOperationStarted(String operation);
@@ -72,14 +81,14 @@ public class EnhancedTerminalView extends TerminalView {
         void onClaudeErrorDetected(String error);
         void onClaudeTokenUsageUpdated(int used, int total);
     }
-    
+
     private ClaudeCodeListener legacyListener;
-    
+
     public EnhancedTerminalView(Context context, AttributeSet attrs) {
         super(context, attrs);
         initialize();
     }
-    
+
     private void initialize() {
         inputMethodManager = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
         fileHighlights = new ArrayList<>();
@@ -106,7 +115,7 @@ public class EnhancedTerminalView extends TerminalView {
         @Override public boolean isTerminalViewSelected() { return hasFocus(); }
         @Override public void copyModeChanged(boolean copyMode) {}
         @Override public boolean onKeyDown(int keyCode, KeyEvent e, TerminalSession session) { return false; }
-        @Override public boolean onKeyUp(int keyCode, KeyEvent e) { return false; }
+        @Override public boolean onKeyUp(int keyCode, KeyEvent e, TerminalSession session) { return false; }
         @Override public boolean onLongPress(MotionEvent event) { return false; }
         @Override public boolean readControlKey() { return false; }
         @Override public boolean readAltKey() { return false; }
@@ -134,6 +143,114 @@ public class EnhancedTerminalView extends TerminalView {
         this.tabIndex = index;
     }
 
+    // -------------------------------------------------------------------------
+    // Dangerous-command guard
+    // -------------------------------------------------------------------------
+
+    /**
+     * Enable/disable the guard explicitly (e.g. from the settings screen).
+     */
+    public void setCommandGuardEnabled(boolean enabled) {
+        this.commandGuardEnabled = enabled;
+    }
+
+    private boolean isCommandGuardEnabled() {
+        if (commandGuardEnabled == null) {
+            try {
+                commandGuardEnabled = com.termux.ai.EncryptedPreferencesManager
+                    .getEncryptedPrefs(getContext(), "termux_plus_prefs")
+                    .getBoolean("command_filtering_enabled", true);
+            } catch (Throwable t) {
+                Log.w(TAG, "Failed to read command filtering pref: " + t.getMessage());
+                commandGuardEnabled = true; // safety-first default
+            }
+        }
+        return commandGuardEnabled;
+    }
+
+    /**
+     * Intercepts the IME/commitText Enter path: soft keyboards send the enter
+     * key as the code point '\r' through inputCodePoint().
+     */
+    @Override
+    public void inputCodePoint(int eventSource, int codePoint, boolean controlDownFromEvent, boolean leftAltDownFromEvent) {
+        if (codePoint == '\r' && !controlDownFromEvent && isCommandGuardEnabled()) {
+            String line = getCurrentCommandLine();
+            if (line != null) {
+                CommandGuard.Verdict verdict = CommandGuard.inspect(line);
+                if (verdict.isBlocked()) {
+                    blockEnter(verdict, line, () ->
+                        super.inputCodePoint(eventSource, codePoint, controlDownFromEvent, leftAltDownFromEvent));
+                    return;
+                }
+            }
+        }
+        super.inputCodePoint(eventSource, codePoint, controlDownFromEvent, leftAltDownFromEvent);
+    }
+
+    /**
+     * Intercepts the key-event Enter path (hardware keyboards, Gboard with
+     * TYPE_NULL, extra-keys rows): these go through handleKeyCode(), which
+     * writes the mapped "\r" directly to the session.
+     */
+    @Override
+    public boolean handleKeyCode(int keyCode, int keyMod) {
+        if ((keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)
+            && isCommandGuardEnabled()) {
+            String line = getCurrentCommandLine();
+            if (line != null) {
+                CommandGuard.Verdict verdict = CommandGuard.inspect(line);
+                if (verdict.isBlocked()) {
+                    blockEnter(verdict, line, () -> super.handleKeyCode(keyCode, keyMod));
+                    return true;
+                }
+            }
+        }
+        return super.handleKeyCode(keyCode, keyMod);
+    }
+
+    /** The command line the user has typed but not yet submitted (current screen row). */
+    private String getCurrentCommandLine() {
+        try {
+            TerminalEmulator emulator = mEmulator;
+            if (emulator == null) return null;
+            int row = emulator.getCursorRow();
+            String line = emulator.getScreen().getSelectedText(0, row, emulator.mColumns, row);
+            return line == null ? null : line.trim();
+        } catch (Throwable t) {
+            Log.w(TAG, "Failed to read current command line: " + t.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Show the confirmation dialog for a blocked command. The Enter keystroke
+     * is held back until the user confirms; on confirm it is sent through,
+     * on cancel it is dropped (the user can edit the line).
+     */
+    private void blockEnter(CommandGuard.Verdict verdict, String line, Runnable sendEnter) {
+        if (enterBlocked) return; // a dialog is already up; drop repeat Enters
+        enterBlocked = true;
+
+        try {
+            new AlertDialog.Builder(getContext())
+                .setTitle(verdict.isDangerous() ? "\u26A0\uFE0F Dangerous command" : "Caution")
+                .setMessage("This command may " + verdict.reason + ".\n\n" + line + "\n\nRun it anyway?")
+                .setPositiveButton("Run anyway", (d, w) -> {
+                    enterBlocked = false;
+                    sendEnter.run();
+                })
+                .setNegativeButton("Cancel", (d, w) -> enterBlocked = false)
+                .setOnCancelListener(d -> enterBlocked = false)
+                .show();
+        } catch (Throwable t) {
+            // Never let the guard itself break the terminal - fall through.
+            Log.e(TAG, "Failed to show command guard dialog", t);
+            enterBlocked = false;
+            sendEnter.run();
+        }
+    }
+
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
@@ -142,21 +259,19 @@ public class EnhancedTerminalView extends TerminalView {
         }
     }
 
-    // ... (paints and gestures same as before) ...
-    
     private void initializePaints() {
         overlayPaint = new Paint();
         overlayPaint.setAntiAlias(true);
-        overlayPaint.setColor(0x88000000); 
-        
+        overlayPaint.setColor(0x88000000);
+
         progressPaint = new Paint();
         progressPaint.setAntiAlias(true);
-        progressPaint.setColor(0xFF4CAF50); 
+        progressPaint.setColor(0xFF4CAF50);
         progressPaint.setStrokeWidth(8);
-        
+
         highlightPaint = new Paint();
         highlightPaint.setAntiAlias(true);
-        highlightPaint.setColor(0x4400FF00); 
+        highlightPaint.setColor(0x4400FF00);
     }
 
     private void setupGestureDetector() {
@@ -166,7 +281,6 @@ public class EnhancedTerminalView extends TerminalView {
                 // Implementation for double tap
                 return true;
             }
-            // ... (other gestures)
         });
     }
 
@@ -269,8 +383,6 @@ public class EnhancedTerminalView extends TerminalView {
         return null;
     }
 
-    // ... (drawing methods adapted for generic AI) ...
-
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
@@ -283,21 +395,21 @@ public class EnhancedTerminalView extends TerminalView {
 
     private void drawAIOverlays(Canvas canvas) {
         int width = getWidth();
-        
+
         // Top indicator bar
         canvas.drawRect(0, 0, width, 4, progressPaint);
-        
+
         // Status text
         if (!currentAIOperation.isEmpty()) {
-            String statusText = "🤖 " + currentAIOperation;
+            String statusText = "\uD83E\uDD16 " + currentAIOperation;
             Paint textPaint = new Paint();
             textPaint.setColor(0xFF4CAF50);
             textPaint.setTextSize(24);
             textPaint.setTypeface(Typeface.DEFAULT_BOLD);
-            
+
             Rect textBounds = new Rect();
             textPaint.getTextBounds(statusText, 0, statusText.length(), textBounds);
-            
+
             canvas.drawText(statusText, width - textBounds.width() - 16, 32, textPaint);
         }
     }
@@ -306,7 +418,7 @@ public class EnhancedTerminalView extends TerminalView {
         if (aiProgress > 0 && aiProgress < 1.0f) {
             int width = getWidth();
             int progressWidth = (int)(width * aiProgress);
-            
+
             canvas.drawRect(0, getHeight() - 8, progressWidth, getHeight(), progressPaint);
         }
     }
@@ -314,9 +426,9 @@ public class EnhancedTerminalView extends TerminalView {
     private void drawFileHighlights(Canvas canvas) {
         long currentTime = System.currentTimeMillis();
         boolean needsInvalidate = false;
-        
+
         fileHighlights.removeIf(highlight -> currentTime - highlight.timestamp > 5000);
-        
+
         for (FileHighlight highlight : fileHighlights) {
             float alpha = 1.0f - ((currentTime - highlight.timestamp) / 5000.0f);
             if (alpha > 0) {
@@ -325,7 +437,7 @@ public class EnhancedTerminalView extends TerminalView {
                 needsInvalidate = true;
             }
         }
-        
+
         if (needsInvalidate) {
             postInvalidateOnAnimation();
         }
@@ -336,12 +448,11 @@ public class EnhancedTerminalView extends TerminalView {
         highlight.filePath = filePath;
         highlight.action = action;
         highlight.timestamp = System.currentTimeMillis();
-        highlight.rect = new Rect(0, 0, getWidth(), 40); 
+        highlight.rect = new Rect(0, 0, getWidth(), 40);
         fileHighlights.add(highlight);
         invalidate();
     }
 
-    // Input connection and keyboard handling...
     @Override
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
         outAttrs.inputType = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
