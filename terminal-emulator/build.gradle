@@ -19,7 +19,8 @@ android {
 
         externalNativeBuild {
             cmake {
-                cppFlags "-std=c++17"
+                cppFlags "-std=c++17", "-Wl,-z,max-page-size=16384"
+                cFlags "-Wl,-z,max-page-size=16384"
                 arguments "-DANDROID_STL=c++_shared"
             }
         }

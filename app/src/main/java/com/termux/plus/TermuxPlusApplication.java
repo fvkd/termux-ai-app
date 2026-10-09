@@ -32,28 +32,41 @@ public class TermuxPlusApplication extends Application {
         super.onCreate();
         instance = this;
 
+        // Set up crash handler immediately so all startup errors are logged
+        setupCrashHandler();
+
         if (BuildConfig.DEBUG) {
             enableStrictMode();
         }
 
         Log.d(TAG, "Initializing Termux+ v" + BuildConfig.VERSION_NAME);
 
-        // Initialize secure preferences
+        // Initialize secure preferences (with fallback to standard prefs)
         preferences = EncryptedPreferencesManager.getEncryptedPrefs(this, PREFS_NAME);
 
-        // Apply Material You 3 Dynamic Colors
-        boolean dynamicColorsEnabled = preferences.getBoolean(PREF_DYNAMIC_COLORS, true);
-        if (dynamicColorsEnabled) {
-            DynamicColors.applyToActivitiesIfAvailable(this);
+        // Apply Material You 3 Dynamic Colors safely
+        try {
+            boolean dynamicColorsEnabled = preferences.getBoolean(PREF_DYNAMIC_COLORS, true);
+            if (dynamicColorsEnabled) {
+                DynamicColors.applyToActivitiesIfAvailable(this);
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "Failed to apply dynamic colors: " + t.getMessage());
         }
 
-        int nightMode = preferences.getInt("night_mode", AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
-        AppCompatDelegate.setDefaultNightMode(nightMode);
+        try {
+            int nightMode = preferences.getInt("night_mode", AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
+            AppCompatDelegate.setDefaultNightMode(nightMode);
+        } catch (Throwable t) {
+            Log.w(TAG, "Failed to set default night mode: " + t.getMessage());
+        }
 
-        // Initialize Plugin Manager and Core Plugins
-        initializePlugins();
-
-        setupCrashHandler();
+        // Initialize Plugin Manager and Core Plugins safely
+        try {
+            initializePlugins();
+        } catch (Throwable t) {
+            Log.w(TAG, "Failed to initialize plugins: " + t.getMessage());
+        }
 
         // Background init
         new Thread(this::initializeTerminalEnvironment).start();

@@ -120,8 +120,11 @@ public class TabbedTerminalActivity extends AppCompatActivity {
     
         @Override
         protected void onCreate(Bundle savedInstanceState) {
-            // Enable Material You Dynamic Colors
-            com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this);
+            try {
+                com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this);
+            } catch (Throwable t) {
+                Log.w(TAG, "Failed to apply dynamic colors to activity: " + t.getMessage());
+            }
             
             // It would be better to save the state of the tabs, including the working directory and the command history, so that the user can resume their session.
             super.onCreate(savedInstanceState);
@@ -762,7 +765,11 @@ public class TabbedTerminalActivity extends AppCompatActivity {
     }
     
     private String getDefaultDirectory() {
-        return getFilesDir().getParent() + "/files/home";
+        File home = new File(getFilesDir(), "home");
+        if (!home.exists()) {
+            home.mkdirs();
+        }
+        return home.getAbsolutePath();
     }
     
     /**
@@ -1134,6 +1141,11 @@ public class TabbedTerminalActivity extends AppCompatActivity {
             return true; // Null intent is fine (normal app launch)
         }
 
+        // Standard launcher intents should always be allowed
+        if (Intent.ACTION_MAIN.equals(intent.getAction())) {
+            return true;
+        }
+
         // Get intent data
         android.net.Uri data = intent.getData();
         if (data == null) {
@@ -1143,15 +1155,17 @@ public class TabbedTerminalActivity extends AppCompatActivity {
         // Validate scheme
         String scheme = data.getScheme();
         if (scheme == null) {
-            Log.w(TAG, "Intent has null scheme");
-            return false;
+            return true; // No scheme to validate
         }
 
-        // Only allow our custom scheme
-        if (!"termux-ai".equals(scheme)) {
-            Log.w(TAG, "Invalid intent scheme: " + scheme);
-            return false;
+        // Allow our custom scheme or standard data schemes
+        if ("termux-ai".equals(scheme) || "file".equals(scheme) || "content".equals(scheme)) {
+            return true;
         }
+
+        Log.w(TAG, "Unrecognized intent scheme: " + scheme);
+        return false;
+    }
 
         // Validate host if present
         String host = data.getHost();

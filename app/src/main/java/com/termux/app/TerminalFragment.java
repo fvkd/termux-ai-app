@@ -200,6 +200,9 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
     }
     
     private void createTerminalSession() {
+        if (workingDirectory != null) {
+            new java.io.File(workingDirectory).mkdirs();
+        }
         String[] env = buildEnvironmentFromJson();
         String[] args = {"/system/bin/sh", "-"};
         

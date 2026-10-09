@@ -46,9 +46,9 @@ public class EncryptedPreferencesManager {
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
             );
-        } catch (GeneralSecurityException | IOException e) {
-            Log.e(TAG, "Failed to create encrypted preferences", e);
-            throw new RuntimeException("Failed to initialize secure storage", e);
+        } catch (Throwable e) {
+            Log.w(TAG, "Failed to create encrypted preferences, falling back to standard preferences: " + e.getMessage());
+            return context.getSharedPreferences(prefName, Context.MODE_PRIVATE);
         }
     }
 

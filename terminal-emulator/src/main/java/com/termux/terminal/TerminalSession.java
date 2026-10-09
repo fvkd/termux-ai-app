@@ -315,6 +315,16 @@ public final class TerminalSession extends TerminalOutput {
     }
 
     private static FileDescriptor wrapFileDescriptor(int fileDescriptor, TerminalSessionClient client) {
+        // Try standard Android ParcelFileDescriptor API (no reflection, works across all Android versions)
+        try {
+            android.os.ParcelFileDescriptor pfd = android.os.ParcelFileDescriptor.adoptFd(fileDescriptor);
+            if (pfd != null && pfd.getFileDescriptor() != null) {
+                return pfd.getFileDescriptor();
+            }
+        } catch (Throwable t) {
+            Logger.logStackTraceWithMessage(client, LOG_TAG, "ParcelFileDescriptor.adoptFd failed, trying reflection", t);
+        }
+
         FileDescriptor result = new FileDescriptor();
         try {
             Field descriptorField;
@@ -326,9 +336,8 @@ public final class TerminalSession extends TerminalOutput {
             }
             descriptorField.setAccessible(true);
             descriptorField.set(result, fileDescriptor);
-        } catch (NoSuchFieldException | IllegalAccessException | IllegalArgumentException e) {
+        } catch (Throwable e) {
             Logger.logStackTraceWithMessage(client, LOG_TAG, "Error accessing FileDescriptor#descriptor private field", e);
-            System.exit(1);
         }
         return result;
     }

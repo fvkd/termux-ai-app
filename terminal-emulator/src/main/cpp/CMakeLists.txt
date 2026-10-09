@@ -27,6 +27,11 @@ target_include_directories(termux PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+# Linker options - 16KB page size alignment for Android 15+ / Pixel devices
+target_link_options(termux PRIVATE
+    "-Wl,-z,max-page-size=16384"
+)
+
 # Compiler options
 target_compile_options(termux PRIVATE
     -Wall

@@ -46,6 +46,7 @@
         <style name="Theme.TermuxPlus.NoActionBar">
             <item name="windowActionBar">false</item>
             <item name="windowNoTitle">true</item>
+            <item name="android:windowNoTitle">true</item>
         </style>
             
             <!-- Custom AlertDialog style for Light Theme -->
