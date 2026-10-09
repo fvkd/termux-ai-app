@@ -69,8 +69,10 @@ public class EncryptedPreferencesManager {
                 Context.MODE_PRIVATE
             );
 
+            java.util.Map<String, ?> allPlaintextPrefs = plaintextPrefs.getAll();
+
             // Check if plaintext prefs are empty (already migrated or first run)
-            if (plaintextPrefs.getAll().isEmpty()) {
+            if (allPlaintextPrefs.isEmpty()) {
                 return true;
             }
 
@@ -78,8 +80,9 @@ public class EncryptedPreferencesManager {
             SharedPreferences.Editor editor = encryptedPrefs.edit();
 
             // Copy all values from plaintext to encrypted
-            for (String key : plaintextPrefs.getAll().keySet()) {
-                Object value = plaintextPrefs.getAll().get(key);
+            for (java.util.Map.Entry<String, ?> entry : allPlaintextPrefs.entrySet()) {
+                String key = entry.getKey();
+                Object value = entry.getValue();
 
                 if (value instanceof String) {
                     editor.putString(key, (String) value);
