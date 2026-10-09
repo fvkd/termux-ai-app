@@ -961,8 +961,8 @@ public class TabbedTerminalActivity extends AppCompatActivity {
         int tabsToRemove = terminalTabs.size() - position - 1;
 
         // Remove tabs from the end to the right of position
-        for (int i = 0; i < tabsToRemove; i++) {
-            terminalTabs.remove(terminalTabs.size() - 1);
+        if (tabsToRemove > 0) {
+            terminalTabs.subList(position + 1, terminalTabs.size()).clear();
         }
 
         // Refresh adapter
