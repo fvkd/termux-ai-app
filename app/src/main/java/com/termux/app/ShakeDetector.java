@@ -50,7 +50,14 @@ public class ShakeDetector implements SensorEventListener {
     public ShakeDetector(Context context, ShakeCallback callback) {
         this.callback = callback;
         sensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
-        accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        Sensor acc = null;
+        if (sensorManager != null) {
+            try {
+                acc = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+            } catch (Throwable ignored) {
+            }
+        }
+        accelerometer = acc;
     }
 
     public void start() {
