@@ -7,9 +7,6 @@ import android.util.Log;
 import androidx.security.crypto.EncryptedSharedPreferences;
 import androidx.security.crypto.MasterKey;
 
-import java.io.IOException;
-import java.security.GeneralSecurityException;
-
 /**
  * Manages encrypted SharedPreferences for secure storage of sensitive data.
  *
