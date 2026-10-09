@@ -4,7 +4,6 @@ import android.app.Application;
 import android.content.SharedPreferences;
 import android.util.Log;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatDelegate;
 
 import com.google.android.material.color.DynamicColors;
@@ -13,26 +12,30 @@ import com.termux.ai.EncryptedPreferencesManager;
 import com.termux.plus.plugin.PluginManager;
 import com.termux.plus.plugin.impl.AutoSavePlugin;
 import com.termux.plus.plugin.impl.ClaudePlugin;
+import com.termux.plus.plugin.impl.GeminiPlugin;
 
 /**
- * Main Application class for Termux+
- * 
- * Handles global initialization, configuration, and plugin management.
+ * Main Application class for Termux+.
+ *
+ * Plus feature toggles (PlusFeatureManager) are now consulted here so the
+ * Plus Toggles screen is honest: dynamic colors and the plugin system can
+ * actually be turned off, and the Gemini plugin is registered alongside
+ * Claude so the provider selection in settings works.
  */
 public class TermuxPlusApplication extends Application {
     private static final String TAG = "TermuxPlusApplication";
     private static final String PREFS_NAME = "termux_plus_prefs";
     private static final String PREF_DYNAMIC_COLORS = "dynamic_colors_enabled";
-    
+
     private static TermuxPlusApplication instance;
     private SharedPreferences preferences;
-    
+    private PlusFeatureManager featureManager;
+
     @Override
     public void onCreate() {
         super.onCreate();
         instance = this;
 
-        // Set up crash handler immediately so all startup errors are logged
         setupCrashHandler();
 
         if (BuildConfig.DEBUG) {
@@ -41,12 +44,15 @@ public class TermuxPlusApplication extends Application {
 
         Log.d(TAG, "Initializing Termux+ v" + BuildConfig.VERSION_NAME);
 
-        // Initialize secure preferences (with fallback to standard prefs)
+        featureManager = PlusFeatureManager.getInstance(this);
+
         preferences = EncryptedPreferencesManager.getEncryptedPrefs(this, PREFS_NAME);
 
-        // Apply Material You 3 Dynamic Colors safely
+        // Apply Material You 3 Dynamic Colors safely - only if BOTH the
+        // settings pref and the Plus Toggles feature flag allow it.
         try {
-            boolean dynamicColorsEnabled = preferences.getBoolean(PREF_DYNAMIC_COLORS, true);
+            boolean dynamicColorsEnabled = preferences.getBoolean(PREF_DYNAMIC_COLORS, true)
+                && featureManager.isDynamicColorsEnabled();
             if (dynamicColorsEnabled) {
                 DynamicColors.applyToActivitiesIfAvailable(this);
             }
@@ -61,14 +67,18 @@ public class TermuxPlusApplication extends Application {
             Log.w(TAG, "Failed to set default night mode: " + t.getMessage());
         }
 
-        // Initialize Plugin Manager and Core Plugins safely
+        // Initialize Plugin Manager and Core Plugins safely - honors the
+        // Plugin System toggle on the Plus Features screen.
         try {
-            initializePlugins();
+            if (featureManager.isPluginSystemEnabled()) {
+                initializePlugins();
+            } else {
+                Log.i(TAG, "Plugin system disabled via Plus Toggles; skipping plugin registration.");
+            }
         } catch (Throwable t) {
             Log.w(TAG, "Failed to initialize plugins: " + t.getMessage());
         }
 
-        // Background init
         new Thread(this::initializeTerminalEnvironment).start();
 
         Log.d(TAG, "Termux+ initialized successfully");
@@ -76,11 +86,13 @@ public class TermuxPlusApplication extends Application {
 
     private void initializePlugins() {
         PluginManager manager = PluginManager.getInstance(this);
-        
-        // Register Official Core Plugins
+
+        // Register Official Core Plugins - Claude AND Gemini so the provider
+        // selection in settings actually has both providers available.
         manager.registerPlugin(new ClaudePlugin());
+        manager.registerPlugin(new GeminiPlugin());
         manager.registerPlugin(new AutoSavePlugin());
-        
+
         Log.i(TAG, "Core plugins registered.");
     }
 
@@ -94,12 +106,11 @@ public class TermuxPlusApplication extends Application {
                 .penaltyLog()
                 .build());
     }
-    
+
     private void initializeTerminalEnvironment() {
         createDirectories();
-        // Setup environment variables (mock)
     }
-    
+
     private void createDirectories() {
         try {
             java.io.File homeDir = new java.io.File(getFilesDir(), "home");
@@ -108,7 +119,7 @@ public class TermuxPlusApplication extends Application {
             Log.e(TAG, "Failed to create directories", e);
         }
     }
-    
+
     private void setupCrashHandler() {
         final Thread.UncaughtExceptionHandler defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler((thread, ex) -> {
@@ -128,16 +139,19 @@ public class TermuxPlusApplication extends Application {
             }
         });
     }
-    
+
     public static TermuxPlusApplication getInstance() {
         return instance;
     }
-    
+
     public SharedPreferences getAppPreferences() {
         return preferences;
     }
-    
-    // Config getters/setters delegating to preferences...
+
+    public PlusFeatureManager getFeatureManager() {
+        return featureManager;
+    }
+
     public boolean isClaudeEnabled() {
         return preferences.getBoolean("claude_enabled", true);
     }
@@ -147,11 +161,21 @@ public class TermuxPlusApplication extends Application {
     }
 
     public boolean isDynamicColorsEnabled() {
-        return preferences.getBoolean(PREF_DYNAMIC_COLORS, true);
+        return preferences.getBoolean(PREF_DYNAMIC_COLORS, true)
+            && featureManager.isDynamicColorsEnabled();
     }
 
     public void setDynamicColorsEnabled(boolean enabled) {
         preferences.edit().putBoolean(PREF_DYNAMIC_COLORS, enabled).apply();
+    }
+
+    /** Selected AI provider: "claude" (default) or "gemini". */
+    public String getAIProviderId() {
+        return preferences.getString("ai_provider", "claude");
+    }
+
+    public void setAIProviderId(String providerId) {
+        preferences.edit().putString("ai_provider", providerId).apply();
     }
 
     public int getNightMode() {

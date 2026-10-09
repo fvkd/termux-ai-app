@@ -20,9 +20,10 @@ import com.termux.terminal.EnhancedTerminalView;
 import com.termux.terminal.TerminalSession;
 import com.termux.terminal.TerminalSessionClient;
 
+import com.termux.plus.PlusFeatureManager;
 import com.termux.plus.api.AIProvider;
+import com.termux.plus.api.TermuxPlugin;
 import com.termux.plus.plugin.PluginManager;
-import com.termux.plus.plugin.impl.ClaudePlugin;
 
 import java.io.File;
 import java.lang.ref.WeakReference;
@@ -31,10 +32,15 @@ import java.util.List;
 /**
  * Fragment containing an enhanced terminal with Claude Code integration.
  *
- * The terminal session now runs the real Termux bootstrap environment
- * ($PREFIX/bin/bash) installed by {@link TermuxInstaller}, instead of a bare
+ * The terminal session runs the real Termux bootstrap environment
+ * ($PREFIX/bin/bash) installed by TermuxInstaller, instead of a bare
  * /system/bin/sh with a half-Termux environment (which caused the startup
  * SIGSEGV reported in thejaustin/termux-ai-app#53).
+ *
+ * Plus feature toggles are now honored: the AI provider hookup only runs
+ * when the AI Integration toggle is on, and the provider instance is chosen
+ * by the user's provider selection (Claude or Gemini) instead of always
+ * taking the first registered provider.
  */
 public class TerminalFragment extends Fragment implements TerminalSessionClient {
     private static final String ARG_TAB_NAME = "tab_name";
@@ -49,6 +55,7 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
     private TerminalSession terminalSession;
     private WeakReference<TabbedTerminalActivity> parentActivityRef;
     private boolean bootstrapChecked = false;
+    private boolean aiHookedUp = false;
 
     public static TerminalFragment newInstance(String tabName, String workingDirectory, int tabIndex) {
         TerminalFragment fragment = new TerminalFragment();
@@ -73,6 +80,9 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
     @Override
     public void onResume() {
         super.onResume();
+        // Plus Toggles may have changed while we were paused - re-evaluate
+        // the AI hookup so turning AI off actually detaches the provider.
+        hookupAIProvider();
     }
 
     @Override
@@ -138,16 +148,8 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
             terminalView.showKeyboard();
         });
 
-        // Setup AI Provider
-        if (getContext() != null) {
-            PluginManager manager = PluginManager.getInstance(getContext());
-            // Use the first enabled AI provider
-            List<AIProvider> providers = manager.getEnabledPluginsByType(AIProvider.class);
-            if (!providers.isEmpty()) {
-                terminalView.setTabIndex(tabIndex);
-                terminalView.setAIProvider(providers.get(0));
-            }
-        }
+        // AI provider hookup happens in onResume()/hookupAIProvider() so the
+        // AI Integration toggle is re-checked on every resume.
 
         // Set Claude Code listener
         terminalView.setClaudeCodeListener(new EnhancedTerminalView.ClaudeCodeListener() {
@@ -155,7 +157,6 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
             public void onClaudeCodeDetected() {
                 TabbedTerminalActivity activity = parentActivityRef != null ? parentActivityRef.get() : null;
                 if (activity != null) {
-                    // Update tab to show Claude is active
                     TabbedTerminalActivity.TerminalTab tab = activity.getTab(tabIndex);
                     if (tab != null) {
                         tab.setClaudeActive(true);
@@ -175,7 +176,7 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
 
             @Override
             public void onClaudeFileGenerated(String filePath, String action) {
-                Toast.makeText(getContext(), "📁 " + action + ": " + filePath, Toast.LENGTH_LONG).show();
+                Toast.makeText(getContext(), "\uD83D\uDCC1 " + action + ": " + filePath, Toast.LENGTH_LONG).show();
             }
 
             @Override
@@ -187,24 +188,76 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
                         tab.setClaudeActive(false);
                     }
                 }
-                Toast.makeText(getContext(), "✅ Claude operation completed", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getContext(), "\u2705 Claude operation completed", Toast.LENGTH_SHORT).show();
             }
 
             @Override
             public void onClaudeErrorDetected(String error) {
-                Toast.makeText(getContext(), "❌ Claude Error: " + error, Toast.LENGTH_LONG).show();
+                Toast.makeText(getContext(), "\u274C Claude Error: " + error, Toast.LENGTH_LONG).show();
             }
 
             @Override
             public void onClaudeTokenUsageUpdated(int used, int total) {
-                // Update token usage display - could be shown in status bar
-                String tokenInfo = used + "/" + total + " tokens";
-                // For now, just log it - could be displayed in UI later
-                if (getContext() != null && used > total * 0.8) {
-                    Toast.makeText(getContext(), "⚠️ Token usage: " + tokenInfo, Toast.LENGTH_SHORT).show();
+                if (getContext() != null && total > 0 && used > total * 0.8) {
+                    Toast.makeText(getContext(), "\u26A0\uFE0F Token usage: " + used + "/" + total + " tokens", Toast.LENGTH_SHORT).show();
                 }
             }
         });
+    }
+
+    /**
+     * Attach (or detach) the AI provider based on the Plus Toggles AI
+     * Integration flag and the user's selected provider (Claude/Gemini).
+     * Runs on every resume so toggle changes take effect immediately.
+     */
+    private void hookupAIProvider() {
+        if (getContext() == null || terminalView == null) return;
+
+        boolean aiEnabled;
+        try {
+            aiEnabled = PlusFeatureManager.getInstance(getContext()).isAIEnabled();
+        } catch (Throwable t) {
+            Log.w("TerminalFragment", "Failed to read AI toggle: " + t.getMessage());
+            aiEnabled = true;
+        }
+
+        if (!aiEnabled) {
+            if (aiHookedUp) {
+                terminalView.setAIProvider(null);
+                aiHookedUp = false;
+                Log.i("TerminalFragment", "AI Integration disabled via Plus Toggles; provider detached.");
+            }
+            return;
+        }
+
+        PluginManager manager = PluginManager.getInstance(getContext());
+        List<AIProvider> providers = manager.getEnabledPluginsByType(AIProvider.class);
+        if (providers.isEmpty()) return;
+
+        AIProvider selected = null;
+
+        // Prefer the provider the user selected in settings.
+        try {
+            SharedPreferences prefs = com.termux.ai.EncryptedPreferencesManager.getEncryptedPrefs(getContext(), "termux_plus_prefs");
+            String providerChoice = prefs.getString("ai_provider", "claude");
+            String wantedId = "gemini".equals(providerChoice)
+                ? "com.termux.plus.gemini" : "com.termux.plus.claude";
+            for (AIProvider p : providers) {
+                if (wantedId.equals(((TermuxPlugin) p).getId())) {
+                    selected = p;
+                    break;
+                }
+            }
+        } catch (Throwable t) {
+            Log.w("TerminalFragment", "Failed to resolve selected provider: " + t.getMessage());
+        }
+
+        // Fall back to the first enabled provider.
+        if (selected == null) selected = providers.get(0);
+
+        terminalView.setTabIndex(tabIndex);
+        terminalView.setAIProvider(selected);
+        aiHookedUp = true;
     }
 
     private void createTerminalSession() {
@@ -264,7 +317,6 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
 
         terminalView.attachSession(terminalSession);
 
-        // Send initial setup commands
         sendInitialCommands();
     }
 
@@ -289,9 +341,6 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
         env.add("COLORTERM=truecolor");
         env.add("LANG=en_US.UTF-8");
 
-        // Carry over environment variables required on Android 10+ for the
-        // dynamic linker to resolve APEX-provided runtime libraries, plus
-        // other standard inherited variables.
         String[] inherited = {
             "ANDROID_ART_ROOT", "ANDROID_TZDATA_ROOT", "ANDROID_I18N",
             "ANDROID_DATA", "ANDROID_ROOT", "ANDROID_STORAGE",
@@ -308,19 +357,24 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
     }
 
     private void sendInitialCommands() {
-        // Send commands to set up the terminal environment
-        if (terminalSession != null) {
-            try {
-                // Change to working directory
-                terminalSession.write("cd \"" + workingDirectory + "\"\r");
+        if (terminalSession == null) return;
+        try {
+            terminalSession.write("cd \"" + workingDirectory + "\"\r");
+            terminalSession.write("echo 'Welcome to Termux AI - " + tabName + "'\r");
 
-                // Show welcome message
-                terminalSession.write("echo 'Welcome to Termux AI - " + tabName + "'\r");
-                terminalSession.write("echo 'Type \"claude code\" to start AI-enhanced coding'\r");
-                terminalSession.write("echo 'Gestures: Swipe down=stop, Double-tap=history'\r");
-            } catch (Exception e) {
-                Log.e("TermuxAI", "Failed to send initial commands", e);
+            // AI hint only when the AI Integration toggle is on.
+            boolean aiEnabled = true;
+            if (getContext() != null) {
+                try {
+                    aiEnabled = PlusFeatureManager.getInstance(getContext()).isAIEnabled();
+                } catch (Throwable ignored) {}
             }
+            if (aiEnabled) {
+                terminalSession.write("echo 'Type \"claude code\" to start AI-enhanced coding'\r");
+            }
+            terminalSession.write("echo 'Gestures: Swipe down=stop, Double-tap=history'\r");
+        } catch (Exception e) {
+            Log.e("TermuxAI", "Failed to send initial commands", e);
         }
     }
 
@@ -366,32 +420,20 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
         }
     }
 
-    /**
-     * Send a command to the terminal
-     * @param command The command to execute (without trailing newline)
-     */
     public void sendCommand(String command) {
         if (terminalSession != null && command != null) {
             terminalSession.write(command + "\r");
         }
     }
 
-    /**
-     * Send raw bytes to the terminal (for control characters like Ctrl+C)
-     * @param bytes The bytes to send
-     */
     public void sendBytes(byte[] bytes) {
         if (terminalSession != null) {
             terminalSession.write(new String(bytes));
         }
     }
 
-    /**
-     * Send interrupt signal (Ctrl+C) to the terminal
-     */
     public void sendInterrupt() {
         if (terminalSession != null) {
-            // Ctrl+C is ASCII 3 (ETX - End of Text)
             terminalSession.write("\u0003");
         }
     }
@@ -415,22 +457,18 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
 
     @Override
     public void onTitleChanged(@NonNull TerminalSession changedSession) {
-        // Update tab title if needed
     }
 
     @Override
     public void onSessionFinished(@NonNull TerminalSession finishedSession) {
-        // Handle session finish
         if (getActivity() != null) {
-            getActivity().runOnUiThread(() -> {
-                Toast.makeText(getContext(), "Terminal session ended", Toast.LENGTH_SHORT).show();
-            });
+            getActivity().runOnUiThread(() ->
+                Toast.makeText(getContext(), "Terminal session ended", Toast.LENGTH_SHORT).show());
         }
     }
 
     @Override
     public void onCopyTextToClipboard(@NonNull TerminalSession session, String text) {
-        // Handle clipboard copy
         if (getContext() == null) return;
         android.content.ClipboardManager clipboard =
             (android.content.ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
@@ -443,29 +481,23 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
 
     @Override
     public void onPasteTextFromClipboard(@Nullable TerminalSession session) {
-        // Handle clipboard paste
         if (getContext() == null) return;
         android.content.ClipboardManager clipboard =
             (android.content.ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboard != null && clipboard.hasPrimaryClip()) {
             android.content.ClipData.Item item = clipboard.getPrimaryClip().getItemAt(0);
-            if (item != null && item.getText() != null) {
-                String text = item.getText().toString();
-                if (terminalSession != null) {
-                    terminalSession.write(text);
-                }
+            if (item != null && item.getText() != null && terminalSession != null) {
+                terminalSession.write(item.getText().toString());
             }
         }
     }
 
     @Override
     public void onBell(@NonNull TerminalSession session) {
-        // Handle terminal bell
     }
 
     @Override
     public void onColorsChanged(@NonNull TerminalSession session) {
-        // Handle color changes
         if (terminalView != null) {
             terminalView.onScreenUpdated();
         }
