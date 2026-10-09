@@ -182,9 +182,13 @@ public class TabbedTerminalActivity extends AppCompatActivity {
     
             loadTabs();
 
-            // Show onboarding on first launch
-            if (OnboardingOverlay.shouldShowOnboarding(this)) {
-                showOnboarding();
+            // Show onboarding on first launch safely
+            try {
+                if (OnboardingOverlay.shouldShowOnboarding(this)) {
+                    showOnboarding();
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "Onboarding overlay failed: " + t.getMessage());
             }
         }    
         @Override

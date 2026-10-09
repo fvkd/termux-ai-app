@@ -110,19 +110,27 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
     }
     
     private void setupTerminalView() {
+        // Initialize font size
+        if (getContext() != null) {
+            terminalView.setTextSize((int) (14 * getResources().getDisplayMetrics().density));
+        }
+
         // Disable autofill for the terminal view
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             terminalView.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
         }
 
         // Enable Gboard autocomplete based on settings
-        if (getContext() != null) {
-            SharedPreferences prefs = com.termux.ai.EncryptedPreferencesManager.getEncryptedPrefs(getContext(), "termux_plus_prefs");
-            boolean autoCorrectEnabled = prefs.getBoolean(TermuxPlusSettingsActivity.PREF_KEYBOARD_AUTOCORRECT, true);
-            terminalView.setGboardAutoCompleteEnabled(autoCorrectEnabled);
-        } else {
-            terminalView.setGboardAutoCompleteEnabled(true);
+        boolean autoCorrectEnabled = true;
+        try {
+            if (getContext() != null) {
+                SharedPreferences prefs = com.termux.ai.EncryptedPreferencesManager.getEncryptedPrefs(getContext(), "termux_plus_prefs");
+                autoCorrectEnabled = prefs.getBoolean(TermuxPlusSettingsActivity.PREF_KEYBOARD_AUTOCORRECT, true);
+            }
+        } catch (Throwable t) {
+            Log.w("TerminalFragment", "Failed to read autocorrect preference: " + t.getMessage());
         }
+        terminalView.setGboardAutoCompleteEnabled(autoCorrectEnabled);
 
         // Request focus and show keyboard when terminal is ready
         terminalView.post(() -> {

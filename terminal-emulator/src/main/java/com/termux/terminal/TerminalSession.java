@@ -64,6 +64,7 @@ public final class TerminalSession extends TerminalOutput {
      * {@link JNI#createSubprocess(String, String, String[], String[], int[], int, int, int, int)}.
      */
     private int mTerminalFileDescriptor;
+    private android.os.ParcelFileDescriptor mTerminalParcelFileDescriptor;
 
     /** Set by the application for user identification of session, not by terminal. */
     public String mSessionName;
@@ -252,7 +253,14 @@ public final class TerminalSession extends TerminalOutput {
         // Stop the reader and writer threads, and close the I/O streams
         mTerminalToProcessIOQueue.close();
         mProcessToTerminalIOQueue.close();
-        JNI.close(mTerminalFileDescriptor);
+        if (mTerminalParcelFileDescriptor != null) {
+            try {
+                mTerminalParcelFileDescriptor.close();
+            } catch (Throwable ignored) {}
+            mTerminalParcelFileDescriptor = null;
+        } else {
+            JNI.close(mTerminalFileDescriptor);
+        }
     }
 
     @Override
@@ -314,17 +322,7 @@ public final class TerminalSession extends TerminalOutput {
         return null;
     }
 
-    private static FileDescriptor wrapFileDescriptor(int fileDescriptor, TerminalSessionClient client) {
-        // Try standard Android ParcelFileDescriptor API (no reflection, works across all Android versions)
-        try {
-            android.os.ParcelFileDescriptor pfd = android.os.ParcelFileDescriptor.adoptFd(fileDescriptor);
-            if (pfd != null && pfd.getFileDescriptor() != null) {
-                return pfd.getFileDescriptor();
-            }
-        } catch (Throwable t) {
-            Logger.logStackTraceWithMessage(client, LOG_TAG, "ParcelFileDescriptor.adoptFd failed, trying reflection", t);
-        }
-
+    private FileDescriptor wrapFileDescriptor(int fileDescriptor, TerminalSessionClient client) {
         FileDescriptor result = new FileDescriptor();
         try {
             Field descriptorField;
@@ -336,9 +334,20 @@ public final class TerminalSession extends TerminalOutput {
             }
             descriptorField.setAccessible(true);
             descriptorField.set(result, fileDescriptor);
+            return result;
         } catch (Throwable e) {
-            Logger.logStackTraceWithMessage(client, LOG_TAG, "Error accessing FileDescriptor#descriptor private field", e);
+            Logger.logStackTraceWithMessage(client, LOG_TAG, "Error accessing FileDescriptor#descriptor field, trying ParcelFileDescriptor", e);
         }
+
+        try {
+            mTerminalParcelFileDescriptor = android.os.ParcelFileDescriptor.adoptFd(fileDescriptor);
+            if (mTerminalParcelFileDescriptor != null && mTerminalParcelFileDescriptor.getFileDescriptor() != null) {
+                return mTerminalParcelFileDescriptor.getFileDescriptor();
+            }
+        } catch (Throwable t) {
+            Logger.logStackTraceWithMessage(client, LOG_TAG, "ParcelFileDescriptor.adoptFd failed", t);
+        }
+
         return result;
     }
 

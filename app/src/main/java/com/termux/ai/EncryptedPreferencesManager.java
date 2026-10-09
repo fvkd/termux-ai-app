@@ -39,15 +39,18 @@ public class EncryptedPreferencesManager {
                 .build();
 
             // Create encrypted SharedPreferences
-            return EncryptedSharedPreferences.create(
+            SharedPreferences prefs = EncryptedSharedPreferences.create(
                 context,
                 prefName,
                 masterKey,
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
             );
+            // Verify keys are decryptable
+            prefs.getAll();
+            return prefs;
         } catch (Throwable e) {
-            Log.w(TAG, "Failed to create encrypted preferences, falling back to standard preferences: " + e.getMessage());
+            Log.w(TAG, "Failed to initialize encrypted preferences, falling back to standard preferences: " + e.getMessage());
             return context.getSharedPreferences(prefName, Context.MODE_PRIVATE);
         }
     }

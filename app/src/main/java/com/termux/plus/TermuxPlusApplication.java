@@ -112,7 +112,17 @@ public class TermuxPlusApplication extends Application {
     private void setupCrashHandler() {
         final Thread.UncaughtExceptionHandler defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler((thread, ex) -> {
-            Log.e(TAG, "Uncaught exception", ex);
+            Log.e("TERMUX_CRASH", "FATAL UNCAUGHT EXCEPTION in thread " + thread.getName(), ex);
+            try {
+                java.io.File crashFile = new java.io.File(getFilesDir(), "last_crash.txt");
+                java.io.StringWriter sw = new java.io.StringWriter();
+                java.io.PrintWriter pw = new java.io.PrintWriter(sw);
+                ex.printStackTrace(pw);
+                java.io.FileOutputStream fos = new java.io.FileOutputStream(crashFile);
+                fos.write(("Thread: " + thread.getName() + "\nMessage: " + ex.getMessage() + "\n\n" + sw.toString()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                fos.flush();
+                fos.close();
+            } catch (Throwable ignored) {}
             if (defaultHandler != null) {
                 defaultHandler.uncaughtException(thread, ex);
             }

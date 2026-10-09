@@ -54,11 +54,19 @@ public class ShakeDetector implements SensorEventListener {
     }
 
     public void start() {
-        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME);
+        if (sensorManager != null && accelerometer != null) {
+            try {
+                sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_UI);
+            } catch (Throwable ignored) {}
+        }
     }
 
     public void stop() {
-        sensorManager.unregisterListener(this);
+        if (sensorManager != null) {
+            try {
+                sensorManager.unregisterListener(this);
+            } catch (Throwable ignored) {}
+        }
     }
 
     @Override

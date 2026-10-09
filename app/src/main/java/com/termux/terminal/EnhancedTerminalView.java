@@ -93,6 +93,7 @@ public class EnhancedTerminalView extends TerminalView {
         initializePaints();
         setupGestureDetector();
         setTerminalViewClient(new DefaultTerminalViewClient());
+        setTextSize((int) (14 * getContext().getResources().getDisplayMetrics().density));
     }
 
     /** Minimal TerminalViewClient with sensible defaults for Termux+. */
