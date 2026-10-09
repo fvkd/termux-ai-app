@@ -5,11 +5,12 @@ on:
     branches: [ main, master, develop ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
 
     steps:
     - name: Checkout code
@@ -20,28 +21,30 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
+        cache: gradle
 
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
-
-    - name: Setup Gradle
-      uses: gradle/gradle-build-action@v3
       with:
-        gradle-version: 8.10.2
+        cmdline-tools-version: 11076708
+        packages: 'platform-tools platforms;android-34 build-tools;34.0.0 ndk;27.3.13750724 cmake;3.22.1'
 
-    - name: Create local.properties
-      run: echo "sdk.dir=$ANDROID_HOME" > local.properties
+    - name: Prepare build environment
+      run: |
+        echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+        echo "ndk.dir=$ANDROID_NDK_ROOT" >> local.properties
+        chmod +x gradlew
 
     - name: Run AI Code Review Agent
       run: python3 tools/review_agent.py
 
     - name: Build Debug APK
-      run: gradle assembleDebug --stacktrace --no-daemon
+      run: ./gradlew assembleDebug --stacktrace
 
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       with:
-        name: termux-ai-debug-apk
+        name: termux-ai-debug-apk-direct
         path: app/build/outputs/apk/debug/*.apk
         retention-days: 7
 
@@ -50,4 +53,3 @@ jobs:
       run: |
         echo "=== Build Output Directory ==="
         find app/build/outputs -name "*.apk" -type f || echo "No APK files found"
-        ls -la app/build/outputs/apk/debug/ || echo "Debug directory not found"

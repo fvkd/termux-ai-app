@@ -195,4 +195,9 @@
         <item>Claude 2.0</item>
         <item>Claude 1.2</item>
     </string-array>
+
+    <!-- Text selection -->
+    <string name="copy_text">Copy</string>
+    <string name="paste_text">Paste</string>
+    <string name="text_selection_more">More…</string>
 </resources>

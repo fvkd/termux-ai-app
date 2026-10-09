@@ -8,6 +8,7 @@ on:
 jobs:
   test-compile:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     
     steps:
     - uses: actions/checkout@v4
@@ -17,28 +18,29 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
+        cache: gradle
         
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
       with:
-        api-level: 34
-        build-tools: 34.0.0
+        cmdline-tools-version: 11076708
+        packages: 'platform-tools platforms;android-34 build-tools;34.0.0 ndk;27.3.13750724 cmake;3.22.1'
 
     - name: Basic setup
       run: |
         chmod +x gradlew
         echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+        echo "ndk.dir=$ANDROID_NDK_ROOT" >> local.properties
 
     - name: Test compilation
       run: |
-        # Try to compile Java sources without full APK build
-        ./gradlew compileDebugJavaWithJavac --continue || echo "Compilation issues found"
-        
+        ./gradlew compileDebugJavaWithJavac --continue
+
     - name: Report issues
+      if: always()
       run: |
         echo "## 🔍 Quick Build Test Results" >> $GITHUB_STEP_SUMMARY
-        
-        if ./gradlew compileDebugJavaWithJavac --dry-run; then
+        if [ $? -eq 0 ]; then
           echo "✅ Java compilation looks good" >> $GITHUB_STEP_SUMMARY
         else
           echo "⚠️ Java compilation issues detected" >> $GITHUB_STEP_SUMMARY
