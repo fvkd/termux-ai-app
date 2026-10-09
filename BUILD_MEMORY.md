@@ -19,9 +19,58 @@ This document tracks build failures, lessons learned, and improvements for reduc
 
 ---
 
-## Build #2 - 2026-02-15 - SUCCESS
+## Build #10 - 2026-10-09 - SUCCESS (Startup Crash & Layout Fixes)
 
 ### Pre-Build Analysis
+**Commits:** `bcf980b`, `6d01fa6`
+**Objective:** Resolve immediate startup crash on Pixel 10a (Android 17 Canary, Rooted).
+
+### Build Result: SUCCESS
+- **CI Run ID:** 37917634311
+- **Release Tag:** `v0.1.0-build-10`
+- **Output Artifact:** `app-debug.apk` (13.35 MiB), committed locally as `termux+ai.apk`.
+- **16 KB Page Alignment:** Verified on arm64 LOAD segments (`0x4000`).
+
+### Issues Fixed in Build 10:
+1. **Fatal NullPointerException on `TerminalView.mRenderer`:**
+   - **Error:** Main thread crash during initial layout pass (`onSizeChanged` -> `updateSize`).
+   - **Root Cause:** In `TerminalView.java:990`, calculation `viewWidth / mRenderer.mFontWidth` executed when `mRenderer` was null because neither `TerminalView`'s constructor nor `EnhancedTerminalView`/`TerminalFragment` had called `setTextSize()`. Upstream Termux relied on legacy `TermuxActivity` to call `setTextSize()`, which was absent in `TabbedTerminalActivity`.
+   - **Fix:** Initialized `mRenderer` in `TerminalView` constructor with default monospace font size; added null-safety guards in `updateSize()`; called `setTextSize()` explicitly during setup in `EnhancedTerminalView` and `TerminalFragment`.
+2. **Crash in `ShakeDetector` on Canary/Rooted Environment:**
+   - **Error:** Unhandled exception when registering sensor listeners during `onCreate()`.
+   - **Fix:** Added null checks for `sensorManager` and `accelerometer` plus `try-catch` blocks around `registerListener()` and `unregisterListener()`.
+3. **Premature GC of Native Master PTY `ParcelFileDescriptor`:**
+   - **Error:** Master pseudo-terminal file descriptor was being closed prematurely because a temporary `ParcelFileDescriptor` created in a static helper was immediately garbage collected.
+   - **Fix:** Stored `ParcelFileDescriptor` in `TerminalSession` instance field (`mTerminalParcelFileDescriptor`) and cleanly closed it during `cleanupResources()`.
+4. **Android 17 Canary Keystore Fallback:**
+   - **Error:** `EncryptedSharedPreferences` on Canary builds can fail due to unstable preview Keystore providers.
+   - **Fix:** Added a test read (`prefs.getAll()`) during initialization in `EncryptedPreferencesManager.java` to fall back instantly to standard plaintext `SharedPreferences` if Keystore throws.
+5. **On-Device Crash Logging:**
+   - **Feature:** Uncaught exception handler in `TermuxPlusApplication.java` logs with tag `TERMUX_CRASH` and writes full stack traces to `/data/data/com.termux.ai/files/last_crash.txt` for easy terminal retrieval via `su`.
+
+---
+
+## Build #9 - 2026-10-09 - SUCCESS (16 KB Page Alignment & Linker Fixes)
+
+### Pre-Build Analysis
+**Commits:** `6878d27`, `24b54a2`, `3fd3e40`
+**Objective:** Add Android 15-17 16 KB memory page size compatibility for Google Pixel Tensor processors.
+
+### Build Result: SUCCESS
+- **CI Run ID:** 37914741870
+- **Release Tag:** `v0.1.0-build-9`
+- **Native Verification:** `readelf -W -l libtermux.so` confirmed `Align: 0x4000` (16,384 bytes).
+
+### Issues Fixed in Build 9:
+1. **16 KB ELF Page Alignment:**
+   - Added `-Wl,-z,max-page-size=16384` to `CMakeLists.txt` via `target_link_options(termux PRIVATE "-Wl,-z,max-page-size=16384")`.
+   - Disabled legacy JNI packaging in `app/build.gradle` (`useLegacyPackaging = false`) so page-aligned shared libraries are loaded uncompressed from APK.
+2. **NDK Compiler Argument Cleanup:**
+   - Removed `-Wl` flags mistakenly placed in Gradle `cppFlags`/`cFlags` which caused clang++ `-Wunused-command-line-argument` build failure with `-Werror`.
+3. **Syntax Cleanup:**
+   - Fixed stray brace in `validateIntent()` inside `TabbedTerminalActivity.java`.
+
+---
 **Commit being pushed:** Implement Plus Features toggle UI and settings integration
 
 ### Build Result: SUCCESS
