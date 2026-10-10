@@ -195,7 +195,6 @@ public class TermuxPlusSettingsActivity extends AppCompatActivity {
         
         // Reset toggles
         autoSuggestionsSwitch.setChecked(true);
-        commandFilteringSwitch.setChecked(true);
         localProcessingSwitch.setChecked(false);
         
         Toast.makeText(this, "All AI data cleared successfully", Toast.LENGTH_SHORT).show();
