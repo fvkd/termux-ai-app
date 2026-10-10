@@ -303,7 +303,10 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
             shellPath = "/system/bin/sh";
         }
 
-        String[] args = {shellPath, "-l"};
+        // JNI.createSubprocess already sets argv[0] to shellPath, so args must
+        // hold only the arguments. Repeating shellPath here made bash try to run
+        // its own binary as a script and exit 126.
+        String[] args = {"-l"};
         String[] env = buildShellEnvironment(prefix, shellPath);
 
         terminalSession = new TerminalSession(
