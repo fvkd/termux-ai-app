@@ -3,16 +3,23 @@ package com.termux.app;
 import android.content.Context;
 import android.os.Build;
 import android.system.Os;
+import android.system.OsConstants;
 import android.util.Log;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.ZipEntry;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.ZipInputStream;
 
 /**
@@ -28,10 +35,26 @@ import java.util.zip.ZipInputStream;
  * (2) Extract the bootstrap zip into a staging directory.
  * (3) Handle SYMLINKS.txt entries and set exec permissions.
  * (4) Atomically rename the staging directory to $PREFIX.
+ * (5) Rewrite the upstream /data/data/com.termux paths baked into scripts,
+ *     configs and symlinks so they point at this app's data directory.
+ *
+ * The stock bootstrap is built for the com.termux package. Compiled binaries
+ * keep their upstream paths (so apt/dpkg stay broken), but every text file and
+ * symlink is fixed, and bash is started through {@link #writeShellRc} because
+ * its built-in profile/bashrc paths cannot be patched.
  */
 public final class TermuxInstaller {
 
     private static final String LOG_TAG = "TermuxInstaller";
+
+    /** Bump the suffix to re-run {@link #patchPrefix} on existing installs. */
+    private static final String PREFIX_PATCH_MARKER = ".termux-ai-prefix-patched-v1";
+
+    /** Upstream data dir, not followed by more package-name characters (e.g. ".ai"). */
+    private static final Pattern UPSTREAM_DATA_DIR = Pattern.compile("/data/data/com\\.termux(?![\\w.])");
+
+    /** Text files larger than this are left alone. */
+    private static final long MAX_PATCH_FILE_SIZE = 4 * 1024 * 1024;
 
     /** $PREFIX - the Termux root filesystem directory. */
     public static File getPrefixDir(Context context) {
@@ -51,7 +74,20 @@ public final class TermuxInstaller {
     public static void setupBootstrapIfNeeded(final Context context, final BootstrapCallback callback) {
         if (isBootstrapInstalled(context)) {
             Log.i(LOG_TAG, "Bootstrap already installed at " + getPrefixDir(context).getAbsolutePath());
-            callback.onDone(true, null);
+            if (isPrefixPatched(context)) {
+                callback.onDone(true, null);
+                return;
+            }
+            // Installed by an older build that did not rewrite upstream paths.
+            new Thread(() -> {
+                try {
+                    patchPrefix(context);
+                    notify(context, callback, true, null);
+                } catch (final Exception e) {
+                    Log.e(LOG_TAG, "Bootstrap path patching failed", e);
+                    notify(context, callback, false, Log.getStackTraceString(e));
+                }
+            }, "TermuxBootstrapPatcher").start();
             return;
         }
         Log.i(LOG_TAG, "Installing bootstrap packages...");
@@ -82,6 +118,8 @@ public final class TermuxInstaller {
         // Clear left-over state from any previous broken installation.
         deleteRecursive(staging);
         deleteRecursive(prefix);
+        //noinspection ResultOfMethodCallIgnored
+        new File(filesDir, PREFIX_PATCH_MARKER).delete();
 
         ensureDirectoryExists(staging);
         ensureDirectoryExists(prefix);
@@ -151,7 +189,111 @@ public final class TermuxInstaller {
         new File(filesDir, "home").mkdirs();
         new File(prefix, "tmp").mkdirs();
 
+        patchPrefix(context);
+
         Log.i(LOG_TAG, "Bootstrap packages installed successfully.");
+    }
+
+    private static boolean isPrefixPatched(Context context) {
+        return new File(context.getFilesDir(), PREFIX_PATCH_MARKER).exists();
+    }
+
+    /**
+     * Point upstream /data/data/com.termux paths in $PREFIX at this app and
+     * retire the bootstrap second stage, which needs dpkg and so cannot run
+     * here. Safe to run more than once.
+     */
+    private static void patchPrefix(Context context) throws Exception {
+        File prefix = getPrefixDir(context);
+        String replacement = Matcher.quoteReplacement("/data/data/" + context.getPackageName());
+        int[] patched = {0};
+        patchTree(prefix, replacement, patched);
+        Log.i(LOG_TAG, "Rewrote upstream paths in " + patched[0] + " files and symlinks");
+
+        File secondStage = new File(prefix, "etc/termux/termux-bootstrap/second-stage");
+        File lock = new File(secondStage, "termux-bootstrap-second-stage.sh.lock");
+        if (secondStage.isDirectory() && !isSymlink(lock)) {
+            Os.symlink("termux-bootstrap-second-stage.sh", lock.getAbsolutePath());
+        }
+        //noinspection ResultOfMethodCallIgnored
+        new File(prefix, "etc/profile.d/01-termux-bootstrap-second-stage-fallback.sh").delete();
+
+        if (!new File(context.getFilesDir(), PREFIX_PATCH_MARKER).createNewFile()) {
+            Log.w(LOG_TAG, "Prefix patch marker already existed");
+        }
+    }
+
+    private static void patchTree(File file, String replacement, int[] patched) throws Exception {
+        String path = file.getAbsolutePath();
+        if (isSymlink(file)) {
+            String target = Os.readlink(path);
+            String newTarget = UPSTREAM_DATA_DIR.matcher(target).replaceAll(replacement);
+            if (!newTarget.equals(target)) {
+                Os.remove(path);
+                Os.symlink(newTarget, path);
+                patched[0]++;
+            }
+        } else if (file.isDirectory()) {
+            File[] children = file.listFiles();
+            if (children != null) {
+                for (File child : children) patchTree(child, replacement, patched);
+            }
+        } else if (file.isFile() && file.length() <= MAX_PATCH_FILE_SIZE) {
+            byte[] bytes = readFile(file);
+            for (byte b : bytes) {
+                if (b == 0) return; // binary
+            }
+            // ISO-8859-1 maps every byte to one char, so non-ASCII content round-trips unchanged.
+            String text = new String(bytes, StandardCharsets.ISO_8859_1);
+            String newText = UPSTREAM_DATA_DIR.matcher(text).replaceAll(replacement);
+            if (!newText.equals(text)) {
+                // Rewrite in place so the file keeps its permissions.
+                try (FileOutputStream out = new FileOutputStream(file)) {
+                    out.write(newText.getBytes(StandardCharsets.ISO_8859_1));
+                }
+                patched[0]++;
+            }
+        }
+    }
+
+    private static byte[] readFile(File file) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream((int) file.length());
+        byte[] buffer = new byte[8192];
+        try (FileInputStream in = new FileInputStream(file)) {
+            int read;
+            while ((read = in.read(buffer)) != -1) out.write(buffer, 0, read);
+        }
+        return out.toByteArray();
+    }
+
+    private static boolean isSymlink(File file) {
+        try {
+            return OsConstants.S_ISLNK(Os.lstat(file.getAbsolutePath()).st_mode);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Write the startup file for interactive bash. bash's built-in
+     * /etc/profile and /etc/bash.bashrc paths point at com.termux, so shells
+     * are started as `bash --posix -i` with ENV set to this file: in POSIX mode
+     * bash reads only $ENV, which then leaves POSIX mode and loads the
+     * (patched) profile. The bash() wrapper does the same for nested shells.
+     */
+    public static File writeShellRc(Context context) throws Exception {
+        File rc = new File(getPrefixDir(context), "etc/termux-ai.bashrc");
+        try (FileWriter writer = new FileWriter(rc)) {
+            writer.write("# Generated by Termux AI on every session start; edit ~/.bashrc instead.\n"
+                + "set +o posix\n"
+                + "[ -r \"$PREFIX/etc/profile\" ] && . \"$PREFIX/etc/profile\"\n"
+                + "for f in ~/.bash_profile ~/.bash_login ~/.profile; do\n"
+                + "    [ -r \"$f\" ] && { . \"$f\"; break; }\n"
+                + "done\n"
+                + "unset f\n"
+                + "bash() { if [ $# -eq 0 ]; then command bash --posix -i; else command bash \"$@\"; fi; }\n");
+        }
+        return rc;
     }
 
     /** Pick the bootstrap zip matching the device's primary ABI. */

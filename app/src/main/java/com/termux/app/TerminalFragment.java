@@ -308,6 +308,17 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
         // its own binary as a script and exit 126.
         String[] args = {"-l"};
         String[] env = buildShellEnvironment(prefix, shellPath);
+        if (!shellPath.equals("/system/bin/sh")) {
+            // bash's built-in profile paths point at com.termux; see TermuxInstaller.writeShellRc.
+            try {
+                File rc = TermuxInstaller.writeShellRc(context);
+                args = new String[]{"--posix", "-i"};
+                env = java.util.Arrays.copyOf(env, env.length + 1);
+                env[env.length - 1] = "ENV=" + rc.getAbsolutePath();
+            } catch (Exception e) {
+                Log.e("TermuxAI", "Failed to write shell rc, starting bash as a login shell", e);
+            }
+        }
 
         terminalSession = new TerminalSession(
             shellPath,
@@ -337,6 +348,8 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
         env.add("LD_LIBRARY_PATH=" + prefix + "/lib");
         env.add("TMPDIR=" + prefix + "/tmp");
         env.add("PREFIX=" + prefix);
+        // ncurses' compiled-in terminfo dir is under com.termux.
+        env.add("TERMINFO=" + prefix + "/share/terminfo");
         env.add("SHELL=" + shellPath);
         env.add("TERMUX_AI=1");
         env.add("TERMUX_AI_TAB=" + tabName);
