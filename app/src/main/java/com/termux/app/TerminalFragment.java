@@ -308,7 +308,7 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
         // its own binary as a script and exit 126.
         String[] args = {"-l"};
         String[] env = buildShellEnvironment(prefix, shellPath);
-        if (!shellPath.equals("/system/bin/sh")) {
+        if (!shellPath.equals("/system/bin/sh") && TermuxInstaller.needsPathRewrite(context)) {
             // bash's built-in profile paths point at com.termux; see TermuxInstaller.writeShellRc.
             try {
                 File rc = TermuxInstaller.writeShellRc(context);
@@ -350,6 +350,13 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
         env.add("PREFIX=" + prefix);
         // ncurses' compiled-in terminfo dir is under com.termux.
         env.add("TERMINFO=" + prefix + "/share/terminfo");
+        // termux-exec makes /usr/bin/env-style shebangs (npm scripts etc.) work, as in upstream Termux.
+        File termuxExec = new File(prefix, "lib/libtermux-exec-ld-preload.so");
+        if (!termuxExec.exists()) termuxExec = new File(prefix, "lib/libtermux-exec.so");
+        // Its rewrite target is compiled in, so only use it under the upstream package.
+        if (termuxExec.exists() && getContext() != null && !TermuxInstaller.needsPathRewrite(getContext())) {
+            env.add("LD_PRELOAD=" + termuxExec.getAbsolutePath());
+        }
         env.add("SHELL=" + shellPath);
         env.add("TERMUX_AI=1");
         env.add("TERMUX_AI_TAB=" + tabName);

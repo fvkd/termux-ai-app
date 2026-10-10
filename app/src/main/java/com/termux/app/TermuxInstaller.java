@@ -38,7 +38,8 @@ import java.util.zip.ZipInputStream;
  * (5) Rewrite the upstream /data/data/com.termux paths baked into scripts,
  *     configs and symlinks so they point at this app's data directory.
  *
- * The stock bootstrap is built for the com.termux package. Compiled binaries
+ * The stock bootstrap is built for the com.termux package, so step (5) only
+ * runs for other application IDs (e.g. debug forks). Compiled binaries
  * keep their upstream paths (so apt/dpkg stay broken), but every text file and
  * symlink is fixed, and bash is started through {@link #writeShellRc} because
  * its built-in profile/bashrc paths cannot be patched.
@@ -46,6 +47,9 @@ import java.util.zip.ZipInputStream;
 public final class TermuxInstaller {
 
     private static final String LOG_TAG = "TermuxInstaller";
+
+    /** Package the official bootstrap and apt repos are built for. */
+    private static final String UPSTREAM_PACKAGE = "com.termux";
 
     /** Bump the suffix to re-run {@link #patchPrefix} on existing installs. */
     private static final String PREFIX_PATCH_MARKER = ".termux-ai-prefix-patched-v1";
@@ -74,7 +78,7 @@ public final class TermuxInstaller {
     public static void setupBootstrapIfNeeded(final Context context, final BootstrapCallback callback) {
         if (isBootstrapInstalled(context)) {
             Log.i(LOG_TAG, "Bootstrap already installed at " + getPrefixDir(context).getAbsolutePath());
-            if (isPrefixPatched(context)) {
+            if (!needsPathRewrite(context) || isPrefixPatched(context)) {
                 callback.onDone(true, null);
                 return;
             }
@@ -189,9 +193,16 @@ public final class TermuxInstaller {
         new File(filesDir, "home").mkdirs();
         new File(prefix, "tmp").mkdirs();
 
-        patchPrefix(context);
+        if (needsPathRewrite(context)) {
+            patchPrefix(context);
+        }
 
         Log.i(LOG_TAG, "Bootstrap packages installed successfully.");
+    }
+
+    /** True when running under a package other than the one the bootstrap was built for. */
+    public static boolean needsPathRewrite(Context context) {
+        return !UPSTREAM_PACKAGE.equals(context.getPackageName());
     }
 
     private static boolean isPrefixPatched(Context context) {
