@@ -66,13 +66,6 @@ Provides quick access to common settings:
 - Privacy controls
 - Mobile-specific preferences
 
-### ShakeDetector
-Implements shake detection using device sensors:
-- Accelerometer-based shake detection
-- Proper lifecycle management
-- Resource optimization
-- Gesture-based terminal clearing
-
 ## AI Integration Architecture
 
 ### AIClient
@@ -138,7 +131,6 @@ Main activity with tab management:
 ## Security Considerations
 
 - API keys stored securely with encryption
-- Sensitive commands filtered before AI processing
 - Local processing options for privacy
 - Secure communication channels
 - Minimal data collection

@@ -30,7 +30,6 @@ The UX/UI improvements focus on making the Termux AI app more mobile-optimized w
 - Better accessibility features
 - Mobile-specific gesture controls
 - Quick settings panel
-- Shake detection functionality
 - Comprehensive help system
 
 All changes maintain the core functionality while improving the user experience.

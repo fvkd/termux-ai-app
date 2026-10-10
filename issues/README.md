@@ -32,10 +32,8 @@ The following issues have been created to address various aspects of the project
 24. Complete File Picker and Project Browser
 25. Implement Quick Command Templates
 26. Complete Project Insights Feature
-27. Implement Shake-to-Clear Functionality
-28. Enhance Security and Data Encryption
-29. Improve Command Filtering for Privacy
-30. Implement Privacy Controls
+27. Enhance Security and Data Encryption
+28. Implement Privacy Controls
 
 ## Next Steps
 

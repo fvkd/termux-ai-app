@@ -159,8 +159,7 @@ public class OnboardingOverlay extends DialogFragment {
                 "Claude Code CLI",
                 "• Deep integration with Claude Code CLI\n" +
                 "• Interactive coding & project analysis\n" +
-                "• Visual progress indicators\n" +
-                "• Shake to clear terminal",
+                "• Visual progress indicators",
                 false
         ));
 

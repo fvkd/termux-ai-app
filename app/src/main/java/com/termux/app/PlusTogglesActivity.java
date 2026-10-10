@@ -68,7 +68,7 @@ public class PlusTogglesActivity extends AppCompatActivity {
             R.id.toggle_gesture_controls,
             PlusFeatureManager.FEATURE_GESTURE_CONTROLS,
             "Gesture Controls",
-            "Shake-to-clear, swipe navigation between tabs, and custom touch gestures."
+            "Swipe navigation between tabs, double-tap history, and custom touch gestures."
         );
 
         // Project Insights
@@ -125,6 +125,14 @@ public class PlusTogglesActivity extends AppCompatActivity {
             PlusFeatureManager.FEATURE_PLUGIN_SYSTEM,
             "Plugin System",
             "Load and manage plugins for extended functionality (Claude integration, auto-save, etc.)."
+        );
+
+        // Shizuku+Plus API & Service
+        bindToggle(
+            R.id.toggle_shizuku_integration,
+            PlusFeatureManager.FEATURE_SHIZUKU_INTEGRATION,
+            "Shizuku+Plus API",
+            "Bridge elevated ADB/Root execution via Shizuku+Plus service for system package tools and privileged commands."
         );
     }
 

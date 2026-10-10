@@ -58,7 +58,7 @@ public class QuickSettingsPanel extends LinearLayout {
     }
 
     public QuickSettingsPanel(Context context, AttributeSet attrs) {
-        super(context);
+        super(context, attrs);
         init(context);
     }
 

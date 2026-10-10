@@ -20,7 +20,7 @@
     <!-- Removed unused dangerous permissions:
          - CAMERA (not implemented)
          - SYSTEM_ALERT_WINDOW (not needed)
-         - BODY_SENSORS (not required for accelerometer/shake detection)
+         - BODY_SENSORS (not needed)
     -->
 
     <application

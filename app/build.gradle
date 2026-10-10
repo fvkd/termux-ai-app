@@ -11,9 +11,12 @@ android {
     defaultConfig {
         applicationId "com.termux.ai"
         minSdk 24
-        targetSdk 34
-        versionCode 3
-        versionName "2.2.0"
+        // Must stay at 28: apps targeting API 29+ can't exec binaries from their
+        // data dir (W^X), which is where the bootstrap's $PREFIX/bin/bash lives.
+        // Same constraint as termux/termux-app.
+        targetSdk 28
+        versionCode 4
+        versionName "2.2.1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
@@ -61,6 +64,11 @@ android {
         jniLibs {
             useLegacyPackaging = false
         }
+    }
+
+    lint {
+        // targetSdk is pinned to 28 on purpose (see defaultConfig).
+        disable 'ExpiredTargetSdkVersion', 'OldTargetApi'
     }
 
     // Keep the (already zip-compressed) bootstrap assets from being recompressed by aapt2.
