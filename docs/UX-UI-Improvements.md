@@ -9,7 +9,6 @@ This document outlines the comprehensive UX/UI improvements made to the Termux A
 - [Accessibility Enhancements](#accessibility-enhancements)
 - [Mobile-Specific UI Interactions](#mobile-specific-ui-interactions)
 - [Quick Settings Panel](#quick-settings-panel)
-- [Shake Detection Feature](#shake-detection-feature)
 - [Claude Help Dialog](#claude-help-dialog)
 - [Best Practices](#best-practices)
 
@@ -125,25 +124,6 @@ The Termux AI app has undergone significant UX/UI improvements to make it more u
 - Better user control over preferences
 - Streamlined UX for frequent adjustments
 
-## Shake Detection Feature
-
-### Features Added
-- **Shake-to-Clear**: Shake the device to clear the terminal
-- **Sensor Integration**: Proper accelerometer sensor usage
-- **Lifecycle Management**: Stops sensor when app is in background
-- **Permission Handling**: Added necessary permissions in manifest
-
-### Implementation Details
-- Created `ShakeDetector` class with sensor management
-- Added `BODY_SENSORS` permission to `AndroidManifest.xml`
-- Implemented start/stop methods in activity lifecycle
-- Connected shake detection with terminal clearing functionality
-
-### Benefits
-- Intuitive gesture for clearing terminal
-- Enhanced mobile interaction patterns
-- Proper resource management
-- Better user experience through physical gestures
 
 ## Claude Help Dialog
 

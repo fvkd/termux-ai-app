@@ -129,6 +129,15 @@ public final class TerminalSession extends TerminalOutput {
         mShellPid = processId[0];
         mClient.setTerminalShellPid(this, mShellPid);
 
+        if (mTerminalFileDescriptor <= 0 || mShellPid <= 0) {
+            String errorMsg = "\r\n[Process creation failed: unable to allocate PTY or execute " + mShellPath + "]\r\n";
+            byte[] bytes = errorMsg.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            mEmulator.append(bytes, bytes.length);
+            notifyScreenUpdate();
+            mClient.onSessionFinished(this);
+            return;
+        }
+
         final FileDescriptor terminalFileDescriptorWrapped = wrapFileDescriptor(mTerminalFileDescriptor, mClient);
 
         new Thread("TermSessionInputReader[pid=" + mShellPid + "]") {

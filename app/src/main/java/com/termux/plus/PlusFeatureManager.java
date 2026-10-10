@@ -25,12 +25,15 @@ public class PlusFeatureManager {
     public static final String FEATURE_MULTI_TAB = "plus_multi_tab";
     public static final String FEATURE_BIOMETRIC_PROTECTION = "plus_biometric_protection";
     public static final String FEATURE_PLUGIN_SYSTEM = "plus_plugin_system";
+    public static final String FEATURE_SHIZUKU_INTEGRATION = "plus_shizuku_integration";
 
     private static PlusFeatureManager instance;
+    private final Context appContext;
     private final SharedPreferences prefs;
 
     private PlusFeatureManager(Context context) {
-        prefs = context.getApplicationContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        this.appContext = context.getApplicationContext();
+        this.prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
     }
 
     public static synchronized PlusFeatureManager getInstance(Context context) {
@@ -101,5 +104,39 @@ public class PlusFeatureManager {
 
     public boolean isPluginSystemEnabled() {
         return isFeatureEnabled(FEATURE_PLUGIN_SYSTEM);
+    }
+
+    public boolean isShizukuIntegrationEnabled() {
+        return isFeatureEnabled(FEATURE_SHIZUKU_INTEGRATION);
+    }
+
+    /**
+     * Check if Shizuku or Shizuku+Plus manager is installed on the device.
+     */
+    public boolean isShizukuInstalled() {
+        if (appContext == null) return false;
+        android.content.pm.PackageManager pm = appContext.getPackageManager();
+        if (pm == null) return false;
+        String[] targets = {"moe.shizuku.privileged.api", "com.termux.plus.shizuku"};
+        for (String target : targets) {
+            try {
+                pm.getPackageInfo(target, 0);
+                return true;
+            } catch (android.content.pm.PackageManager.NameNotFoundException ignored) {}
+        }
+        return false;
+    }
+
+    /**
+     * Diagnostic status string for Shizuku+Plus integration.
+     */
+    public String getShizukuStatus() {
+        if (!isShizukuIntegrationEnabled()) {
+            return "Shizuku+Plus API: Disabled in Plus Settings";
+        }
+        if (!isShizukuInstalled()) {
+            return "Shizuku+Plus: App not found (Install Shizuku+ to elevate)";
+        }
+        return "Shizuku+Plus: Active & Connected";
     }
 }

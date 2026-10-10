@@ -69,6 +69,11 @@
             android:id="@+id/toggle_plugin_system"
             layout="@layout/item_plus_toggle" />
 
+        <!-- Shizuku+Plus API & Service -->
+        <include
+            android:id="@+id/toggle_shizuku_integration"
+            layout="@layout/item_plus_toggle" />
+
         <Button
             android:id="@+id/btn_reset_toggles"
             style="@style/Widget.Material3.Button.TonalButton"

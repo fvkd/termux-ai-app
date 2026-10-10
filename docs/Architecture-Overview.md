@@ -66,13 +66,6 @@ Provides quick access to common settings:
 - Privacy controls
 - Mobile-specific preferences
 
-### ShakeDetector
-Implements shake detection using device sensors:
-- Accelerometer-based shake detection
-- Proper lifecycle management
-- Resource optimization
-- Gesture-based terminal clearing
-
 ## AI Integration Architecture
 
 ### AIClient

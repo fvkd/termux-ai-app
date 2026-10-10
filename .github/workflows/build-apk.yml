@@ -52,6 +52,11 @@ jobs:
     - name: Run AI Code Review Agent
       run: python3 tools/review_agent.py
 
+    - name: Download Termux Bootstraps
+      run: |
+        echo "Downloading Termux bootstrap rootfs packages..."
+        ./gradlew downloadBootstraps --stacktrace
+
     - name: Build with Gradle (Debug)
       if: github.event.inputs.build_type == 'debug' || github.event_name != 'workflow_dispatch'
       run: |

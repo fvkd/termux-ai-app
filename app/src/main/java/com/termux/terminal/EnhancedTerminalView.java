@@ -344,11 +344,12 @@ public class EnhancedTerminalView extends TerminalView {
     // Input connection and keyboard handling...
     @Override
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
+        if (!gboardAutoCompleteEnabled) {
+            return super.onCreateInputConnection(outAttrs);
+        }
         outAttrs.inputType = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
         outAttrs.imeOptions = EditorInfo.IME_ACTION_UNSPECIFIED | EditorInfo.IME_FLAG_NO_EXTRACT_UI | EditorInfo.IME_FLAG_NO_FULLSCREEN;
-        if (gboardAutoCompleteEnabled) {
-            outAttrs.inputType |= InputType.TYPE_TEXT_FLAG_AUTO_COMPLETE | InputType.TYPE_TEXT_FLAG_AUTO_CORRECT;
-        }
+        outAttrs.inputType |= InputType.TYPE_TEXT_FLAG_AUTO_COMPLETE | InputType.TYPE_TEXT_FLAG_AUTO_CORRECT;
         return new TerminalViewInputConnection(this, true);
     }
 
