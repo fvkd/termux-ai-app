@@ -21,7 +21,6 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="@color/terminal_background"
-            app:layout_scrollFlags="scroll|enterAlways"
             app:popupTheme="@style/ThemeOverlay.AppCompat.Light">
 
             <ImageButton
@@ -55,12 +54,26 @@
 
     </com.google.android.material.appbar.AppBarLayout>
 
-    <!-- Main terminal content area -->
-    <androidx.viewpager2.widget.ViewPager2
-        android:id="@+id/terminal_viewpager"
+    <!-- Main terminal content area, with the extra keys row above the keyboard -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+        android:orientation="vertical"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <androidx.viewpager2.widget.ViewPager2
+            android:id="@+id/terminal_viewpager"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <com.termux.app.ExtraKeysBar
+            android:id="@+id/extra_keys_bar"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="@color/tab_background" />
+
+    </LinearLayout>
 
     <!-- Claude Code Status Overlay -->
     <LinearLayout
@@ -199,8 +212,9 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
-        android:layout_marginBottom="80dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="64dp"
         android:contentDescription="@string/new_tab_desc"
         android:src="@drawable/ic_add"
         android:importantForAccessibility="yes"
@@ -212,8 +226,9 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|start"
-        android:layout_margin="16dp"
-        android:layout_marginBottom="80dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="64dp"
         android:contentDescription="@string/claude_actions_desc"
         android:src="@drawable/ic_claude"
         android:visibility="gone"

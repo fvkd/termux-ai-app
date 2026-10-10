@@ -5,7 +5,10 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.ContextMenu;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Toast;
@@ -113,6 +116,8 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
         View view = inflater.inflate(R.layout.fragment_terminal, container, false);
 
         terminalView = view.findViewById(R.id.terminal_view);
+        // Opened by the text selection toolbar's "More" button.
+        registerForContextMenu(terminalView);
         setupTerminalView();
         createTerminalSession();
 
@@ -398,6 +403,55 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
             terminalSession.write("echo 'Gestures: Swipe down=stop, Double-tap=history'\r");
         } catch (Exception e) {
             Log.e("TermuxAI", "Failed to send initial commands", e);
+        }
+    }
+
+    private static final int MENU_COPY_ALL = 1;
+    private static final int MENU_PASTE = 2;
+    private static final int MENU_SHARE = 3;
+    private static final int MENU_RESET = 4;
+    private static final int MENU_KILL = 5;
+
+    /** Every fragment in the ViewPager gets onContextItemSelected; tag items so only this one handles them. */
+    private final int contextMenuGroup = System.identityHashCode(this);
+
+    @Override
+    public void onCreateContextMenu(@NonNull ContextMenu menu, @NonNull View v, @Nullable ContextMenu.ContextMenuInfo menuInfo) {
+        super.onCreateContextMenu(menu, v, menuInfo);
+        menu.add(contextMenuGroup, MENU_COPY_ALL, Menu.NONE, "Copy all");
+        menu.add(contextMenuGroup, MENU_PASTE, Menu.NONE, "Paste");
+        menu.add(contextMenuGroup, MENU_SHARE, Menu.NONE, "Share transcript");
+        menu.add(contextMenuGroup, MENU_RESET, Menu.NONE, "Reset terminal");
+        menu.add(contextMenuGroup, MENU_KILL, Menu.NONE, "Kill process");
+    }
+
+    @Override
+    public boolean onContextItemSelected(@NonNull MenuItem item) {
+        if (item.getGroupId() != contextMenuGroup) return false;
+        switch (item.getItemId()) {
+            case MENU_COPY_ALL:
+                String transcript = terminalView != null ? terminalView.getTranscriptText() : null;
+                if (transcript != null && !transcript.isEmpty() && terminalSession != null) {
+                    onCopyTextToClipboard(terminalSession, transcript);
+                }
+                return true;
+            case MENU_PASTE:
+                onPasteTextFromClipboard(terminalSession);
+                return true;
+            case MENU_SHARE:
+                shareTranscript();
+                return true;
+            case MENU_RESET:
+                if (terminalSession != null) {
+                    terminalSession.reset();
+                    Toast.makeText(getContext(), "Terminal reset", Toast.LENGTH_SHORT).show();
+                }
+                return true;
+            case MENU_KILL:
+                if (terminalSession != null) terminalSession.finishIfRunning();
+                return true;
+            default:
+                return super.onContextItemSelected(item);
         }
     }
 

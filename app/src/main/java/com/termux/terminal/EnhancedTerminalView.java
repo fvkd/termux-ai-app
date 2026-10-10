@@ -12,6 +12,7 @@ import android.util.AttributeSet;
 import android.view.GestureDetector;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
@@ -19,6 +20,8 @@ import android.widget.Toast;
 
 import android.util.Log;
 
+import com.termux.ai.R;
+import com.termux.app.ExtraKeysBar;
 import com.termux.plus.api.AIProvider;
 import com.termux.view.TerminalView;
 import com.termux.view.TerminalViewClient;
@@ -108,8 +111,8 @@ public class EnhancedTerminalView extends TerminalView {
         @Override public boolean onKeyDown(int keyCode, KeyEvent e, TerminalSession session) { return false; }
         @Override public boolean onKeyUp(int keyCode, KeyEvent e) { return false; }
         @Override public boolean onLongPress(MotionEvent event) { return false; }
-        @Override public boolean readControlKey() { return false; }
-        @Override public boolean readAltKey() { return false; }
+        @Override public boolean readControlKey() { ExtraKeysBar bar = extraKeysBar(); return bar != null && bar.consumeCtrl(); }
+        @Override public boolean readAltKey() { ExtraKeysBar bar = extraKeysBar(); return bar != null && bar.consumeAlt(); }
         @Override public boolean readShiftKey() { return false; }
         @Override public boolean readFnKey() { return false; }
         @Override public boolean onCodePoint(int codePoint, boolean ctrlDown, TerminalSession session) { return false; }
@@ -121,6 +124,11 @@ public class EnhancedTerminalView extends TerminalView {
         @Override public void logVerbose(String tag, String message) { Log.v(tag, message); }
         @Override public void logStackTraceWithMessage(String tag, String message, Exception e) { Log.e(tag, message, e); }
         @Override public void logStackTrace(String tag, Exception e) { Log.e(tag, "Stack trace", e); }
+    }
+
+    private ExtraKeysBar extraKeysBar() {
+        View bar = getRootView().findViewById(R.id.extra_keys_bar);
+        return bar instanceof ExtraKeysBar ? (ExtraKeysBar) bar : null;
     }
 
     public void setAIProvider(AIProvider provider) {
