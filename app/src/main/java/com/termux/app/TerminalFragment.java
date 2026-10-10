@@ -13,7 +13,6 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 
 import com.termux.ai.R;
@@ -38,13 +37,10 @@ import java.util.List;
  * /system/bin/sh with a half-Termux environment (which caused the startup
  * SIGSEGV reported in thejaustin/termux-ai-app#53).
  *
- * Plus feature toggles are honored: the AI provider hookup only runs when
- * the AI Integration toggle is on, and the provider instance is chosen by
- * the user's provider selection (Claude or Gemini).
- *
- * The dangerous-command guard is wired here: the "command filtering" pref
- * enables/disables it on the terminal view, and programmatic command sends
- * (quick commands, dialogs) go through the same confirmation flow.
+ * Plus feature toggles are now honored: the AI provider hookup only runs
+ * when the AI Integration toggle is on, and the provider instance is chosen
+ * by the user's provider selection (Claude or Gemini) instead of always
+ * taking the first registered provider.
  */
 public class TerminalFragment extends Fragment implements TerminalSessionClient {
     private static final String ARG_TAB_NAME = "tab_name";
@@ -87,7 +83,6 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
         // Plus Toggles may have changed while we were paused - re-evaluate
         // the AI hookup so turning AI off actually detaches the provider.
         hookupAIProvider();
-        applyCommandGuardSetting();
     }
 
     @Override
@@ -147,14 +142,14 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
         }
         terminalView.setGboardAutoCompleteEnabled(autoCorrectEnabled);
 
-        // Apply the dangerous-command guard setting.
-        applyCommandGuardSetting();
-
         // Request focus and show keyboard when terminal is ready
         terminalView.post(() -> {
             terminalView.requestFocus();
             terminalView.showKeyboard();
         });
+
+        // AI provider hookup happens in onResume()/hookupAIProvider() so the
+        // AI Integration toggle is re-checked on every resume.
 
         // Set Claude Code listener
         terminalView.setClaudeCodeListener(new EnhancedTerminalView.ClaudeCodeListener() {
@@ -210,18 +205,6 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
         });
     }
 
-    /** Push the "command filtering" pref into the terminal view's guard. */
-    private void applyCommandGuardSetting() {
-        if (terminalView == null || getContext() == null) return;
-        try {
-            SharedPreferences prefs = com.termux.ai.EncryptedPreferencesManager.getEncryptedPrefs(getContext(), "termux_plus_prefs");
-            terminalView.setCommandGuardEnabled(prefs.getBoolean("command_filtering_enabled", true));
-        } catch (Throwable t) {
-            Log.w("TerminalFragment", "Failed to read command filtering pref: " + t.getMessage());
-            terminalView.setCommandGuardEnabled(true);
-        }
-    }
-
     /**
      * Attach (or detach) the AI provider based on the Plus Toggles AI
      * Integration flag and the user's selected provider (Claude/Gemini).
@@ -241,7 +224,6 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
         if (!aiEnabled) {
             if (aiHookedUp) {
                 terminalView.setAIProvider(null);
-                terminalView.setTabIndex(-1);
                 aiHookedUp = false;
                 Log.i("TerminalFragment", "AI Integration disabled via Plus Toggles; provider detached.");
             }
@@ -438,31 +420,8 @@ public class TerminalFragment extends Fragment implements TerminalSessionClient 
         }
     }
 
-    /**
-     * Send a command to the terminal, with the dangerous-command guard
-     * applied to programmatic sends (quick commands, dialogs) too.
-     * @param command The command to execute (without trailing newline)
-     */
     public void sendCommand(String command) {
-        if (terminalSession == null || command == null) return;
-
-        CommandGuard.Verdict verdict = CommandGuard.inspect(command);
-        if (!verdict.isBlocked()) {
-            terminalSession.write(command + "\r");
-            return;
-        }
-
-        try {
-            new AlertDialog.Builder(requireActivity())
-                .setTitle(verdict.isDangerous() ? "\u26A0\uFE0F Dangerous command" : "Caution")
-                .setMessage("This command may " + verdict.reason + ".\n\n" + command + "\n\nRun it anyway?")
-                .setPositiveButton("Run anyway", (d, w) -> {
-                    if (terminalSession != null) terminalSession.write(command + "\r");
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
-        } catch (Throwable t) {
-            Log.e("TermuxAI", "Guard dialog failed; allowing command", t);
+        if (terminalSession != null && command != null) {
             terminalSession.write(command + "\r");
         }
     }
