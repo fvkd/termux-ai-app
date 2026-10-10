@@ -88,7 +88,6 @@
 - ✅ Claude Model selection spinner
 - ✅ Token Limit input
 - ✅ Auto Suggestions toggle
-- ✅ Command Filtering toggle
 - ✅ Local Processing toggle
 - ✅ Save button with proper feedback
 

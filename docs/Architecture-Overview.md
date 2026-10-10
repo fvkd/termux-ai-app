@@ -138,7 +138,6 @@ Main activity with tab management:
 ## Security Considerations
 
 - API keys stored securely with encryption
-- Sensitive commands filtered before AI processing
 - Local processing options for privacy
 - Secure communication channels
 - Minimal data collection

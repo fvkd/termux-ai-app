@@ -8,7 +8,6 @@ Implement the advanced settings mentioned in the README, including token limits,
 - [ ] Implement AI model selection settings
 - [ ] Add suggestion frequency controls
 - [ ] Create privacy controls and data retention settings
-- [ ] Add command filtering options
 - [ ] Implement local processing preferences
 - [ ] Add API usage monitoring
 

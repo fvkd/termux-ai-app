@@ -362,14 +362,6 @@
             android:layout_marginTop="16dp"
             android:layout_marginBottom="16dp" />
 
-        <com.google.android.material.switchmaterial.SwitchMaterial
-            android:id="@+id/command_filtering_switch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Filter Sensitive Commands"
-            android:textSize="16sp"
-            android:padding="8dp"
-            android:layout_marginBottom="8dp" />
 
         <com.google.android.material.switchmaterial.SwitchMaterial
             android:id="@+id/local_processing_switch"

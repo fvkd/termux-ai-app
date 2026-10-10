@@ -34,8 +34,7 @@ The following issues have been created to address various aspects of the project
 26. Complete Project Insights Feature
 27. Implement Shake-to-Clear Functionality
 28. Enhance Security and Data Encryption
-29. Improve Command Filtering for Privacy
-30. Implement Privacy Controls
+29. Implement Privacy Controls
 
 ## Next Steps
 

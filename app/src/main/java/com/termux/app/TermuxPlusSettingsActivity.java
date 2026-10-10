@@ -30,7 +30,6 @@ public class TermuxPlusSettingsActivity extends AppCompatActivity {
     private static final String PREF_TOKEN_LIMIT = "token_limit";
     public static final String PREF_AUTO_SUGGESTIONS = "auto_suggestions_enabled";
     public static final String PREF_KEYBOARD_AUTOCORRECT = "keyboard_autocorrect_enabled";
-    private static final String PREF_COMMAND_FILTERING = "command_filtering_enabled";
     private static final String PREF_LOCAL_PROCESSING = "local_processing_enabled";
 
     // Theme settings
@@ -56,7 +55,6 @@ public class TermuxPlusSettingsActivity extends AppCompatActivity {
 
     // Feature toggles
     private SwitchMaterial autoSuggestionsSwitch;
-    private SwitchMaterial commandFilteringSwitch;
     private SwitchMaterial localProcessingSwitch;
 
     private Button saveButton;
@@ -111,7 +109,6 @@ public class TermuxPlusSettingsActivity extends AppCompatActivity {
 
         // Feature toggles
         autoSuggestionsSwitch = findViewById(R.id.auto_suggestions_switch);
-        commandFilteringSwitch = findViewById(R.id.command_filtering_switch);
         localProcessingSwitch = findViewById(R.id.local_processing_switch);
         Button btnClearData = findViewById(R.id.btn_clear_ai_data);
 
@@ -300,9 +297,6 @@ public class TermuxPlusSettingsActivity extends AppCompatActivity {
         boolean autoSuggestions = prefs.getBoolean(PREF_AUTO_SUGGESTIONS, true);
         autoSuggestionsSwitch.setChecked(autoSuggestions);
 
-        boolean commandFiltering = prefs.getBoolean(PREF_COMMAND_FILTERING, true);
-        commandFilteringSwitch.setChecked(commandFiltering);
-
         boolean localProcessing = prefs.getBoolean(PREF_LOCAL_PROCESSING, false);
         localProcessingSwitch.setChecked(localProcessing);
 
@@ -383,7 +377,6 @@ public class TermuxPlusSettingsActivity extends AppCompatActivity {
 
         // Save feature toggles
         boolean autoSuggestions = autoSuggestionsSwitch.isChecked();
-        boolean commandFiltering = commandFilteringSwitch.isChecked();
         boolean localProcessing = localProcessingSwitch.isChecked();
 
         SharedPreferences.Editor editor = prefs.edit();
@@ -409,7 +402,6 @@ public class TermuxPlusSettingsActivity extends AppCompatActivity {
         editor.putBoolean(PREF_DYNAMIC_COLORS, dynamicColors);
         editor.putBoolean(PREF_KEYBOARD_AUTOCORRECT, keyboardAutocorrectSwitch.isChecked());
         editor.putBoolean(PREF_AUTO_SUGGESTIONS, autoSuggestions);
-        editor.putBoolean(PREF_COMMAND_FILTERING, commandFiltering);
         editor.putBoolean(PREF_LOCAL_PROCESSING, localProcessing);
 
         // Save theme settings to app

@@ -55,7 +55,6 @@ Configure Claude behavior in the settings:
 - Model Selection: Choose Claude model (Sonnet, Opus, Haiku, etc.)
 - Token Limit: Set maximum tokens per operation
 - Auto Suggestions: Enable/disable automatic suggestions
-- Command Filtering: Filter sensitive commands before sending to AI
 
 ## Voice Input
 
