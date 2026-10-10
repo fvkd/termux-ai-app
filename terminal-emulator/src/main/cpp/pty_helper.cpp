@@ -63,23 +63,13 @@ int create_pty(int* master_fd, int* slave_fd, char* slave_name, size_t slave_nam
         return -1;
     }
 
-    // Set up terminal attributes
+    // Set up terminal attributes. Keep the kernel's cooked defaults (echo,
+    // canonical mode, signals, onlcr) like upstream termux-app; raw mode here
+    // hides typed input and breaks newlines and Ctrl-C.
     struct termios tios;
     if (tcgetattr(*slave_fd, &tios) == 0) {
-        // Configure for raw mode
-        tios.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
-        tios.c_oflag &= ~OPOST;
-        tios.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
-        tios.c_cflag &= ~(CSIZE | PARENB);
-        tios.c_cflag |= CS8;
-
-        // Enable UTF-8
         tios.c_iflag |= IUTF8;
-
-        // Set to raw mode
-        cfmakeraw(&tios);
-
-        // Apply settings
+        tios.c_iflag &= ~(IXON | IXOFF);
         tcsetattr(*slave_fd, TCSANOW, &tios);
     } else {
         LOGE("tcgetattr failed");
