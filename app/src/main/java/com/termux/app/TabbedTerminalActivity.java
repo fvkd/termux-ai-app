@@ -1120,8 +1120,8 @@ public class TabbedTerminalActivity extends AppCompatActivity {
             return true; // No scheme to validate
         }
 
-        // Allow our custom scheme or standard file/content schemes
-        if (!"termux-ai".equals(scheme) && !"file".equals(scheme) && !"content".equals(scheme)) {
+        // Allow standard termux scheme, custom termux-ai scheme, or standard file/content schemes
+        if (!"termux".equals(scheme) && !"termux-ai".equals(scheme) && !"file".equals(scheme) && !"content".equals(scheme)) {
             Log.w(TAG, "Unrecognized intent scheme: " + scheme);
             return false;
         }

@@ -199,4 +199,8 @@
     <string name="copy_text">Copy</string>
     <string name="paste_text">Paste</string>
     <string name="text_selection_more">More…</string>
+
+    <!-- Permissions -->
+    <string name="permission_run_command_label">Run commands in Termux environment</string>
+    <string name="permission_run_command_description">Allows third-party applications to execute arbitrary commands within Termux.</string>
 </resources>

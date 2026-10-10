@@ -17,11 +17,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
-    <!-- Removed unused dangerous permissions:
-         - CAMERA (not implemented)
-         - SYSTEM_ALERT_WINDOW (not needed)
-         - BODY_SENSORS (not needed)
-    -->
+    <!-- Standard Termux permissions for plugin & external execution -->
+    <permission
+        android:name="com.termux.permission.RUN_COMMAND"
+        android:description="@string/permission_run_command_description"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/permission_run_command_label"
+        android:protectionLevel="dangerous" />
 
     <application
         android:name="com.termux.plus.TermuxPlusApplication"
@@ -49,11 +51,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
             
-            <!-- Support for termux:// URLs -->
+            <!-- Support for termux:// and termux-ai:// URLs -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="termux" />
                 <data android:scheme="termux-ai" />
             </intent-filter>
         </activity>

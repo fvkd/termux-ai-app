@@ -13,8 +13,8 @@ This guide documents the full technical profile, diagnostics, debugging steps, a
 | **Root Status** | Rooted | Available via `su` (KernelSU / Magisk / APatch) |
 | **CPU Architecture** | ARM64 (`arm64-v8a`) | Pure 64-bit userland (no 32-bit `armeabi-v7a` support) |
 | **Memory Page Size** | **16 KB (16,384 bytes)** | Critical: requires ELF 16 KB alignment |
-| **Application ID** | `com.termux.ai` | Main Activity: `com.termux.app.TabbedTerminalActivity` |
-| **Internal Data Dir**| `/data/data/com.termux.ai` | User storage: `/data/user/0/com.termux.ai` |
+| **Application ID** | `com.termux` | Main Activity: `com.termux.app.TabbedTerminalActivity` |
+| **Internal Data Dir**| `/data/data/com.termux` | User storage: `/data/user/0/com.termux` |
 
 ---
 
@@ -25,7 +25,7 @@ If you are working from a terminal on the phone (or via SSH / adb), use these co
 ### A. Check the App Crash Dump File
 Build 10+ includes an unhandled exception interceptor that writes crash dumps directly to disk before the process terminates:
 ```bash
-su -c "cat /data/data/com.termux.ai/files/last_crash.txt"
+su -c "cat /data/data/com.termux/files/last_crash.txt"
 ```
 *If a crash occurs, this file will contain the failing thread name, exception class, message, and full Java/Kotlin stack trace.*
 
@@ -42,15 +42,15 @@ su -c "logcat -v time -s TERMUX_CRASH:* AndroidRuntime:E TermuxPTY:* TermuxPlusA
 ### C. Launch / Restart the App from Terminal
 ```bash
 # Force stop the app
-su -c "am force-stop com.termux.ai"
+su -c "am force-stop com.termux"
 
 # Start the main Tabbed Terminal Activity
-su -c "am start -n com.termux.ai/com.termux.app.TabbedTerminalActivity"
+su -c "am start -n com.termux/com.termux.app.TabbedTerminalActivity"
 ```
 
 ### D. Clear App Cache & Settings (Reset App State)
 ```bash
-su -c "pm clear com.termux.ai"
+su -c "pm clear com.termux"
 ```
 
 ### E. Install Downloaded APK Directly via Root
@@ -63,7 +63,7 @@ su -c "pm install -r -d /sdcard/Download/app-debug.apk"
 To confirm `libtermux.so` is properly aligned to 16 KB on device:
 ```bash
 # Locate installed shared library
-LIB_PATH=$(su -c "find /data/app -name libtermux.so | grep com.termux.ai | head -n 1")
+LIB_PATH=$(su -c "find /data/app -name libtermux.so | grep com.termux | head -n 1")
 
 # Inspect ELF Program Headers
 su -c "readelf -W -l $LIB_PATH | grep -E 'LOAD|Align'"
